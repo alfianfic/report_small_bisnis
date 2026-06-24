@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ========================================
+// MODEL UNTUK DASHBOARD
+// ========================================
+
+model DataPenjualan {
+  id              String   @id @default(cuid())
+  hppPerPorsi     Int      @default(13000)
+  hargaJualPerPorsi Int    @default(15000)
+  labaPerPorsi    Int      @default(2000)
+  targetHarian    Int      @default(200)
+  stokAwal        Int      @default(500)
+  thresholdBelanja Int    @default(200)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  realisasi       RealisasiHarian[]
+  riwayatBelanja  RiwayatBelanja[]
+}
+
+model RealisasiHarian {
+  id          String   @id @default(cuid())
+  tanggal     DateTime @default(now())
+  hari        Int
+  terjual     Int      @default(0)
+  sisa        Int      @default(0)
+  stokAwal    Int      @default(0)
+  status      String   @default("belum_terjadi")
+  perluBelanja Boolean @default(false)
+  belanja     Int      @default(0)
+  dataPenjualanId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  dataPenjualan DataPenjualan @relation(fields: [dataPenjualanId], references: [id], onDelete: Cascade)
+}
+
+model RiwayatBelanja {
+  id          String   @id @default(cuid())
+  tanggal     DateTime @default(now())
+  jumlah      Int
+  keterangan  String?
+  dataPenjualanId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  dataPenjualan DataPenjualan @relation(fields: [dataPenjualanId], references: [id], onDelete: Cascade)
+}
