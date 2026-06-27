@@ -4,7 +4,27 @@ import { salesData as initialSalesData } from "@/app/data/salesData";
 import type { SalesData } from "@/app/types";
 
 interface SalesTableProps {
-  salesData?: SalesData;
+  salesData: {
+    hppPerPorsi: number;
+    hargaJualPerPorsi: number;
+    labaPerPorsi: number;
+    targetHarian: number;
+    realisasiHarian: Array<{
+      hari: number;
+      terjual: number;
+      sisa: number;
+      tanggal: string;
+      stokAwal: number;
+      status: string;
+      perluBelanja: boolean;
+      belanja: number;
+    }>;
+    riwayatBelanja: Array<{
+      tanggal: string;
+      jumlah: number;
+      keterangan: string;
+    }>;
+  };
 }
 
 const formatRupiah = (angka: number) => {
