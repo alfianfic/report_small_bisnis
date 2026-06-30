@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import PembelianTable from '@/app/components/manage/PembelianTable';
 import PembelianForm from '@/app/components/manage/PembelianForm';
-import FilterBar from '@/app/components/manage/FilterBar';
+import FilterBar from '@/app/components/ui/FilterBar';
 
 interface PembelianItem {
   id: string;

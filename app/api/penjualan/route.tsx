@@ -2,7 +2,7 @@
 
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
-import { getMasterByDate } from '@/app/lib/master';
+import { getMasterByDate, getMasterTerbaru } from '@/app/lib/master';
 
 // GET: Ambil data penjualan berdasarkan master aktif
 export async function GET() {
@@ -10,16 +10,23 @@ export async function GET() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // 1. Ambil master yang aktif hari ini
-    const master = await getMasterByDate(today);
+    // 1. Cari master yang aktif hari ini
+    let master = await getMasterByDate(today);
+    
+    // 2. Jika tidak ada master yang aktif hari ini, ambil master terbaru
+    if (!master) {
+      master = await getMasterTerbaru();
+    }
+    
+    // 3. Jika tetap tidak ada, error
     if (!master) {
       return NextResponse.json({
         status: '❌ GAGAL',
-        error: 'Tidak ada master yang aktif',
+        error: 'Tidak ada master yang aktif. Silakan buat master terlebih dahulu.',
       }, { status: 404 });
     }
 
-    // 2. Ambil semua realisasi dari master ini
+    // 4. Ambil semua realisasi dari master ini
     const salesData = await prisma.dataPenjualan.findUnique({
       where: { id: master.id },
       include: {
@@ -38,7 +45,7 @@ export async function GET() {
       }, { status: 404 });
     }
 
-    // 3. Transform data
+    // 5. Transform data
     const transformedData = {
       ...salesData,
       realisasi: salesData.realisasi.map((r: any) => ({
@@ -57,6 +64,7 @@ export async function GET() {
         tanggalBerlaku: master.tanggalBerlaku,
         hppPerPorsi: master.hppPerPorsi,
         hargaJualPerPorsi: master.hargaJualPerPorsi,
+        stokAwal: master.stokAwal,
       },
     });
   } catch (error: any) {

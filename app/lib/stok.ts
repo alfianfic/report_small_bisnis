@@ -1,7 +1,7 @@
 // app/lib/stok.ts
 
-import { getMasterByDate } from "./master";
-import { prisma } from "./prisma";
+import { prisma } from './prisma';
+import { getMasterByDate } from './master';
 
 export async function getStokAwal(tanggal: Date, dataPenjualanId: string) {
   // 1. Cari realisasi H-1
@@ -13,12 +13,19 @@ export async function getStokAwal(tanggal: Date, dataPenjualanId: string) {
     orderBy: { tanggal: 'desc' },
   });
 
-  // 2. Kalau ada, pakai sisa H-1
+  // 2. Kalau ada realisasi H-1, pakai sisa-nya
   if (hariSebelumnya) {
     return hariSebelumnya.sisa;
   }
 
-  // 3. Kalau tidak ada, cari master terakhir
+  // 3. Kalau tidak ada realisasi H-1, cari master yang berlaku
   const master = await getMasterByDate(tanggal);
-  return master?.stokAwal || 0;
+  
+  // 4. Kalau tanggal transaksi >= tanggalBerlaku master, pakai stokAwal master
+  if (master && tanggal >= master.tanggalBerlaku) {
+    return master.stokAwal;
+  }
+
+  // 5. Kalau tidak ada master atau tanggal belum berlaku, return 0
+  return 0;
 }

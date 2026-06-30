@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react';
 import PenjualanTable from '@/app/components/manage/PenjualanTable';
 import PenjualanForm from '@/app/components/manage/PenjualanForm';
-import FilterBar from '@/app/components/manage/FilterBar';
+import FilterBar from '@/app/components/ui/FilterBar';
 
 interface PenjualanData {
   id: string;

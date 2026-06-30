@@ -63,7 +63,6 @@ export default function Home() {
         setSalesData(result.data);
         setActiveMaster(result.activeMaster);
         
-        // Set filtered data awal
         const tableData = result.data.realisasi.map((r: any) => ({
           id: r.id,
           tanggal: r.tanggal,
@@ -73,7 +72,6 @@ export default function Home() {
           stokAwal: r.stokAwal,
           status: r.status,
           perluBelanja: r.perluBelanja,
-          // Snapshot data
           hppPerPorsi: r.hppPerPorsi || result.data.hppPerPorsi,
           hargaJualPerPorsi: r.hargaJualPerPorsi || result.data.hargaJualPerPorsi,
           labaPerPorsi: r.labaPerPorsi || result.data.labaPerPorsi,
@@ -143,53 +141,60 @@ export default function Home() {
     );
   }
 
-  // ✅ Ambil snapshot dari filteredData atau fallback ke salesData
-  const latestItem = filteredData.length > 0 ? filteredData[filteredData.length - 1] : null;
-  
+  // ✅ Cek apakah ada data di periode filter
+  const hasData = filteredData.length > 0;
+
+  // ✅ Ambil snapshot dari filteredData
+  const latestItem = hasData ? filteredData[filteredData.length - 1] : null;
+
   const hppPerPorsi = latestItem?.hppPerPorsi || salesData.hppPerPorsi;
   const hargaJualPerPorsi = latestItem?.hargaJualPerPorsi || salesData.hargaJualPerPorsi;
   const labaPerPorsi = latestItem?.labaPerPorsi || salesData.labaPerPorsi;
   const targetHarian = latestItem?.targetHarian || salesData.targetHarian;
   const thresholdBelanja = latestItem?.thresholdBelanja || salesData.thresholdBelanja;
 
-  // Hitung metrics dari filtered data
-  const totalTerjual = filteredData.reduce((sum, h) => sum + h.terjual, 0);
-  const totalSisa = filteredData.length > 0 ? filteredData[filteredData.length - 1]?.sisa || 0 : 0;
-  
-  // Hitung total belanja
-  const totalBelanja = salesData.riwayatBelanja.reduce((sum, b) => {
-    const jumlah = b.jumlah || b.totalSystem || 0;
-    return sum + jumlah;
-  }, 0);
-  
-  const totalPendapatan = totalTerjual * hargaJualPerPorsi;
-  const totalHPP = totalTerjual * hppPerPorsi;
-  const totalProfit = totalTerjual * labaPerPorsi;
-  const totalPotensiHilang = totalSisa * hargaJualPerPorsi;
-  const persentaseEfisiensi = filteredData.length > 0 
-    ? (totalTerjual / (targetHarian * filteredData.length)) * 100 
+  // ✅ Hitung dari filtered data (hanya jika ada data)
+  const totalTerjual = hasData ? filteredData.reduce((sum, h) => sum + h.terjual, 0) : 0;
+  const totalSisa = hasData ? filteredData[filteredData.length - 1]?.sisa || 0 : 0;
+
+  // ✅ Total belanja di periode filter
+  const totalBelanja = hasData ? salesData.riwayatBelanja
+    .filter(b => {
+      const bDate = new Date(b.tanggal).toISOString().split('T')[0];
+      return filteredData.some(f => {
+        const fDate = new Date(f.tanggal).toISOString().split('T')[0];
+        return bDate === fDate;
+      });
+    })
+    .reduce((sum, b) => sum + (b.jumlah || b.totalSystem || 0), 0) : 0;
+
+  // ✅ Sisa bahan baku: jika ada data, hitung; jika tidak, 0
+  const sisaBahanBaku = hasData 
+    ? Math.max(0, (salesData.stokAwal + totalBelanja) - totalTerjual)
     : 0;
 
   const metrics = {
     totalTerjual,
     totalSisa,
-    sisaBahanBaku: (salesData.stokAwal + totalBelanja) - totalTerjual,
-    nilaiAset: ((salesData.stokAwal + totalBelanja) - totalTerjual) * hppPerPorsi,
-    penjualanHariIni: filteredData.length > 0 ? filteredData[filteredData.length - 1]?.terjual || 0 : 0,
-    nilaiPenjualanHariIni: (filteredData.length > 0 ? filteredData[filteredData.length - 1]?.terjual || 0 : 0) * hargaJualPerPorsi,
-    totalProfit,
-    persentaseEfisiensi,
-    totalPendapatan,
-    totalHPP,
-    totalPotensiHilang,
-    totalModalTerbuang: totalSisa * hppPerPorsi,
-    stokSaatIni: totalSisa,
-    perluBelanja: totalSisa < thresholdBelanja,
-    totalBelanja,
+    sisaBahanBaku,
+    nilaiAset: sisaBahanBaku * hppPerPorsi,
+    penjualanHariIni: hasData ? filteredData[filteredData.length - 1]?.terjual || 0 : 0,
+    nilaiPenjualanHariIni: hasData ? (filteredData[filteredData.length - 1]?.terjual || 0) * hargaJualPerPorsi : 0,
+    totalProfit: hasData ? totalTerjual * labaPerPorsi : 0,
+    persentaseEfisiensi: hasData && filteredData.length > 0
+      ? (totalTerjual / (targetHarian * filteredData.length)) * 100 
+      : 0,
+    totalPendapatan: hasData ? totalTerjual * hargaJualPerPorsi : 0,
+    totalHPP: hasData ? totalTerjual * hppPerPorsi : 0,
+    totalPotensiHilang: hasData ? totalSisa * hargaJualPerPorsi : 0,
+    totalModalTerbuang: hasData ? totalSisa * hppPerPorsi : 0,
+    stokSaatIni: hasData ? totalSisa : 0,
+    perluBelanja: hasData ? totalSisa < thresholdBelanja : false,
+    totalBelanja: hasData ? totalBelanja : 0,
   };
 
-  // ✅ Chart data
-  const chartData = filteredData.map((item) => ({
+  // ✅ Chart data: kosong jika tidak ada data
+  const chartData = hasData ? filteredData.map((item) => ({
     tanggal: item.tanggal,
     hariNama: item.hariNama,
     terjual: item.terjual,
@@ -202,31 +207,25 @@ export default function Home() {
       })
       .reduce((sum, b) => sum + (b.jumlah || b.totalSystem || 0), 0),
     sisa: item.sisa,
-  }));
+  })) : [];
 
   return (
     <main className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
       <header className="pt-12 pb-4 text-center border-b border-gray-100">
-        <h1 className="text-xl font-bold text-gray-700 tracking-wide">
-          DASHBOARD
-        </h1>
-        <p className="text-sm text-gray-400 mt-0.5">
-          manajemen penjualan & stok
-        </p>
+        <h1 className="text-xl font-bold text-gray-700 tracking-wide">DASHBOARD</h1>
+        <p className="text-sm text-gray-400 mt-0.5">manajemen penjualan & stok</p>
         <div className="mt-2 text-xs text-gray-400">
           Master aktif: {new Date(activeMaster.tanggalBerlaku).toLocaleDateString('id-ID')}
           {' · '}
           HPP: Rp{activeMaster.hppPerPorsi.toLocaleString('id-ID')}
         </div>
-        {metrics.perluBelanja && (
+        {hasData && metrics.perluBelanja && (
           <div className="mt-3 px-4 py-2 bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm rounded-lg inline-block">
             ⚠️ Stok menipis ({metrics.stokSaatIni} porsi tersisa)
           </div>
         )}
       </header>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col items-center px-4 py-8">
         <div className="w-full max-w-4xl">
           <DashboardGrid
@@ -248,12 +247,10 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="py-8 text-center text-xs text-gray-300">
         data real-time · periode mingguan
       </footer>
 
-      {/* Form Penjualan */}
       <PenjualanForm
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
@@ -280,7 +277,6 @@ export default function Home() {
         loading={false}
       />
 
-      {/* Form Pembelian */}
       <PembelianForm
         isOpen={isBelanjaOpen}
         onClose={() => setIsBelanjaOpen(false)}
