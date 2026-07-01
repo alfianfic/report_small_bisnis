@@ -3,14 +3,27 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
-// GET: Ambil semua master
+// GET: Ambil semua master data
 export async function GET() {
   try {
-    const masters = await prisma.dataPenjualan.findMany({
+    const masters = await prisma.masterData.findMany({
       orderBy: { tanggalBerlaku: 'desc' },
       include: {
-        realisasi: { take: 3 },
-        riwayatBelanja: { take: 3 },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+          },
+        },
+        realisasi: {
+          take: 3,
+          orderBy: { tanggal: 'desc' },
+        },
+        riwayatBelanja: {
+          take: 3,
+          orderBy: { tanggal: 'desc' },
+        },
       },
     });
 
@@ -20,6 +33,7 @@ export async function GET() {
       count: masters.length,
     });
   } catch (error: any) {
+    console.error('Error fetching master data:', error);
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message,
@@ -32,6 +46,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { 
+      productId,
       hppPerPorsi, 
       hargaJualPerPorsi, 
       targetHarian, 
@@ -39,6 +54,13 @@ export async function POST(request: Request) {
       stokAwal,
       tanggalBerlaku,
     } = body;
+
+    if (!productId) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'productId wajib diisi',
+      }, { status: 400 });
+    }
 
     if (!hppPerPorsi || !hargaJualPerPorsi) {
       return NextResponse.json({
@@ -54,12 +76,27 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const lastMaster = await prisma.dataPenjualan.findFirst({
+    // Cek apakah product exists
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'Product tidak ditemukan',
+      }, { status: 404 });
+    }
+
+    // Ambil master terakhir untuk stokAwal default
+    const lastMaster = await prisma.masterData.findFirst({
+      where: { productId },
       orderBy: { tanggalBerlaku: 'desc' },
     });
 
-    const master = await prisma.dataPenjualan.create({
+    const master = await prisma.masterData.create({
       data: {
+        productId,
         hppPerPorsi,
         hargaJualPerPorsi,
         labaPerPorsi: hargaJualPerPorsi - hppPerPorsi,
@@ -68,14 +105,23 @@ export async function POST(request: Request) {
         stokAwal: stokAwal || lastMaster?.stokAwal || 500,
         tanggalBerlaku: tanggalBerlaku ? new Date(tanggalBerlaku) : new Date(),
       },
+      include: {
+        product: {
+          select: {
+            name: true,
+            sku: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({
       status: '✅ Berhasil!',
       data: master,
-      message: `Master baru berhasil dibuat`,
+      message: `Master baru berhasil dibuat untuk ${master.product.name}`,
     });
   } catch (error: any) {
+    console.error('Error creating master:', error);
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message,
@@ -98,8 +144,11 @@ export async function PUT(request: Request) {
     } = body;
 
     // Cek master yang akan diedit
-    const existingMaster = await prisma.dataPenjualan.findUnique({
+    const existingMaster = await prisma.masterData.findUnique({
       where: { id },
+      include: {
+        product: true,
+      },
     });
 
     if (!existingMaster) {
@@ -109,9 +158,10 @@ export async function PUT(request: Request) {
       }, { status: 404 });
     }
 
-    // ✅ Buat master BARU (bukan update)
-    const newMaster = await prisma.dataPenjualan.create({
+    // Buat master BARU (bukan update)
+    const newMaster = await prisma.masterData.create({
       data: {
+        productId: existingMaster.productId,
         hppPerPorsi: hppPerPorsi || existingMaster.hppPerPorsi,
         hargaJualPerPorsi: hargaJualPerPorsi || existingMaster.hargaJualPerPorsi,
         labaPerPorsi: (hargaJualPerPorsi || existingMaster.hargaJualPerPorsi) - (hppPerPorsi || existingMaster.hppPerPorsi),
@@ -120,15 +170,24 @@ export async function PUT(request: Request) {
         stokAwal: stokAwal || existingMaster.stokAwal,
         tanggalBerlaku: tanggalBerlaku ? new Date(tanggalBerlaku) : new Date(),
       },
+      include: {
+        product: {
+          select: {
+            name: true,
+            sku: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({
       status: '✅ Berhasil!',
       data: newMaster,
-      message: `Master berhasil di-update (versi baru)`,
+      message: `Master berhasil di-update untuk ${newMaster.product.name} (versi baru)`,
       oldVersion: existingMaster,
     });
   } catch (error: any) {
+    console.error('Error updating master:', error);
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message,
