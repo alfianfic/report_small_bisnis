@@ -2,8 +2,6 @@
 
 'use client';
 
-import { useState } from 'react';
-
 interface PenjualanItem {
   id: string;
   tanggal: string;
@@ -62,8 +60,6 @@ export default function PenjualanTable({
   onDelete,
   loading = false,
 }: PenjualanTableProps) {
-  const [selectedRows, setSelectedRows] = useState<string[]>([]);
-
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
@@ -73,10 +69,11 @@ export default function PenjualanTable({
     );
   }
 
-  if (data.length === 0) {
+  if (!data || data.length === 0) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
         <p className="text-gray-400">Tidak ada data penjualan untuk periode ini</p>
+        <p className="text-sm text-gray-300 mt-1">Klik tombol "Tambah Penjualan" untuk menambahkan</p>
       </div>
     );
   }
@@ -123,7 +120,6 @@ export default function PenjualanTable({
               const hpp = item.terjual * hppPerPorsi;
               const profit = item.terjual * labaPerPorsi;
 
-              // Baris highlight
               let rowClass = 'border-b border-gray-50 hover:bg-gray-50/50 transition-colors';
               if (item.sisa === 0) {
                 rowClass += ' bg-red-50/50 hover:bg-red-100/50';

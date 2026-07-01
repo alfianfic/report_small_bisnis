@@ -82,7 +82,6 @@ export default function PembelianTable({
           </thead>
           <tbody>
             {data.map((item, idx) => {
-              // Tentukan nilai efektif
               const jumlahEfektif = item.jumlah || item.jumlahSystem || 0;
               const totalEfektif = item.total || item.totalSystem || 0;
               
