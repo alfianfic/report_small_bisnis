@@ -8,14 +8,21 @@ interface FilterBarProps {
   onFilterChange: (startDate: string, endDate: string) => void;
   currentWeek: number;
   onWeekChange: (week: number) => void;
+  initialStart?: string;
+  initialEnd?: string;
 }
 
-export default function FilterBar({ onFilterChange, currentWeek, onWeekChange }: FilterBarProps) {
+export default function FilterBar({ 
+  onFilterChange, 
+  currentWeek, 
+  onWeekChange,
+  initialStart,
+  initialEnd,
+}: FilterBarProps) {
   const [selectedDate, setSelectedDate] = useState('');
 
-  // ✅ Dapatkan range minggu dari tanggal
   const getWeekRangeFromDate = (date: Date) => {
-    const dayOfWeek = date.getDay(); // 0 = Minggu, 1 = Senin, ...
+    const dayOfWeek = date.getDay();
     const startOfWeek = new Date(date);
     const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     startOfWeek.setDate(date.getDate() - diff);
@@ -33,7 +40,6 @@ export default function FilterBar({ onFilterChange, currentWeek, onWeekChange }:
     };
   };
 
-  // ✅ Dapatkan range minggu dari offset
   const getWeekRange = (weekOffset: number = 0) => {
     const now = new Date();
     const targetDate = new Date(now);
@@ -41,7 +47,6 @@ export default function FilterBar({ onFilterChange, currentWeek, onWeekChange }:
     return getWeekRangeFromDate(targetDate);
   };
 
-  // ✅ Format display
   const formatDisplay = (start: Date, end: Date) => {
     const options: Intl.DateTimeFormatOptions = {
       day: 'numeric',
@@ -57,9 +62,11 @@ export default function FilterBar({ onFilterChange, currentWeek, onWeekChange }:
     return `${startDay}, ${startStr} — ${endDay}, ${endStr}`;
   };
 
-  // ✅ Update filter saat week berubah
+  const range = getWeekRange(currentWeek);
+  const displayText = formatDisplay(range.start, range.end);
+
+  // ✅ Trigger filter on mount and week change
   useEffect(() => {
-    const range = getWeekRange(currentWeek);
     onFilterChange(range.startStr, range.endStr);
   }, [currentWeek]);
 
@@ -68,7 +75,6 @@ export default function FilterBar({ onFilterChange, currentWeek, onWeekChange }:
     onWeekChange(newWeek);
   };
 
-  // ✅ Handler saat pilih tanggal
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const date = e.target.value;
     setSelectedDate(date);
@@ -83,9 +89,6 @@ export default function FilterBar({ onFilterChange, currentWeek, onWeekChange }:
       onFilterChange(newRange.startStr, newRange.endStr);
     }
   };
-
-  const range = getWeekRange(currentWeek);
-  const displayText = formatDisplay(range.start, range.end);
 
   return (
     <div className="flex flex-wrap items-center gap-3 p-4 bg-white rounded-xl border border-gray-100 shadow-sm">

@@ -15,66 +15,102 @@ enum StatusStok {
   belum_terjadi
 }
 
-model DataPenjualan {
+model Product {
   id              String   @id @default(cuid())
+  name            String
+  description     String?
+  sku             String   @unique
   hppPerPorsi     Int      @default(13000)
   hargaJualPerPorsi Int    @default(15000)
   labaPerPorsi    Int      @default(2000)
   targetHarian    Int      @default(200)
   stokAwal        Int      @default(500)
   thresholdBelanja Int    @default(200)
-  tanggalBerlaku  DateTime @default(now())
-  
+  isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
   realisasi       RealisasiHarian[]
   riwayatBelanja  RiwayatBelanja[]
+  masterData      MasterData[]
 
+  @@index([sku])
+  @@index([isActive])
+}
+
+model MasterData {
+  id              String   @id @default(cuid())
+  productId       String
+  tanggalBerlaku  DateTime @default(now())
+  hppPerPorsi     Int      @default(13000)
+  hargaJualPerPorsi Int    @default(15000)
+  labaPerPorsi    Int      @default(2000)
+  targetHarian    Int      @default(200)
+  stokAwal        Int      @default(500)
+  thresholdBelanja Int    @default(200)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // ✅ RELASI KE PRODUCT
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  // ✅ OPPOSITE RELATION KE REALISASI & BELANJA
+  realisasi       RealisasiHarian[]
+  riwayatBelanja  RiwayatBelanja[]
+
+  @@index([productId])
   @@index([tanggalBerlaku])
+  @@unique([productId, tanggalBerlaku])
 }
 
 model RealisasiHarian {
   id          String   @id @default(cuid())
+  productId   String
   tanggal     DateTime @default(now())
   terjual     Int      @default(0)
   sisa        Int      @default(0)
   stokAwal    Int      @default(0)
   status      StatusStok @default(belum_terjadi)
   perluBelanja Boolean @default(false)
-  dataPenjualanId String
+  masterDataId String
+  
+  // Snapshot
+  hppPerPorsi     Int
+  hargaJualPerPorsi Int
+  labaPerPorsi    Int
+  targetHarian    Int
+  thresholdBelanja Int
+  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  dataPenjualan DataPenjualan @relation(fields: [dataPenjualanId], references: [id], onDelete: Cascade)
+  // ✅ RELASI KE PRODUCT & MASTERDATA
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  masterData  MasterData @relation(fields: [masterDataId], references: [id], onDelete: Cascade)
 
+  @@index([productId])
   @@index([tanggal])
-  @@index([dataPenjualanId])
-  @@unique([tanggal, dataPenjualanId])  // 1 hari 1 record
+  @@unique([productId, tanggal])
 }
 
 model RiwayatBelanja {
   id          String   @id @default(cuid())
+  productId   String
   tanggal     DateTime @default(now())
-  
-  // 👇 INPUT USER (MANUAL)
-  jumlah      Int?      // Jumlah unit (opsional)
-  total       Int?      // Total harga (opsional)
-  
-  // 👇 SYSTEM (AUTO CALCULATED)
-  jumlahSystem Int?     // Dihitung dari total / hppPerPorsi
-  totalSystem  Int?     // Dihitung dari jumlah x hppPerPorsi
-  
-  // 👇 MASTER DATA (SNAPSHOT saat transaksi)
-  hppPerPorsi  Int      // Copy dari DataPenjualan.hppPerPorsi
-  
+  jumlah      Int?
+  total       Int?
+  jumlahSystem Int?
+  totalSystem  Int?
+  hppPerPorsi  Int
   keterangan  String?
-  dataPenjualanId String
+  masterDataId String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  dataPenjualan DataPenjualan @relation(fields: [dataPenjualanId], references: [id], onDelete: Cascade)
+  // ✅ RELASI KE PRODUCT & MASTERDATA
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  masterData  MasterData @relation(fields: [masterDataId], references: [id], onDelete: Cascade)
 
+  @@index([productId])
   @@index([tanggal])
-  @@index([dataPenjualanId])
 }
