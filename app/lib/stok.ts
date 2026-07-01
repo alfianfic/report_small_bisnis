@@ -3,12 +3,12 @@
 import { prisma } from './prisma';
 import { getMasterByDate } from './master';
 
-export async function getStokAwal(tanggal: Date, dataPenjualanId: string) {
-  // 1. Cari realisasi H-1
+export async function getStokAwal(tanggal: Date, productId: string) {
+  // 1. Cari realisasi H-1 untuk product ini
   const hariSebelumnya = await prisma.realisasiHarian.findFirst({
     where: {
+      productId: productId,
       tanggal: { lt: tanggal },
-      dataPenjualanId,
     },
     orderBy: { tanggal: 'desc' },
   });
@@ -19,13 +19,32 @@ export async function getStokAwal(tanggal: Date, dataPenjualanId: string) {
   }
 
   // 3. Kalau tidak ada realisasi H-1, cari master yang berlaku
-  const master = await getMasterByDate(tanggal);
+  const master = await getMasterByDate(tanggal, productId);
   
-  // 4. Kalau tanggal transaksi >= tanggalBerlaku master, pakai stokAwal master
-  if (master && tanggal >= master.tanggalBerlaku) {
+  // 4. Kalau ada master, pakai stokAwal master
+  if (master) {
     return master.stokAwal;
   }
 
-  // 5. Kalau tidak ada master atau tanggal belum berlaku, return 0
+  // 5. Kalau tidak ada master, return 0
   return 0;
+}
+
+export async function getStokSaatIni(tanggal: Date, productId: string) {
+  // Ambil realisasi hari ini
+  const hariIni = await prisma.realisasiHarian.findUnique({
+    where: {
+      productId_tanggal: {
+        productId,
+        tanggal,
+      },
+    },
+  });
+
+  if (hariIni) {
+    return hariIni.sisa;
+  }
+
+  // Kalau tidak ada, cari H-1
+  return getStokAwal(tanggal, productId);
 }
