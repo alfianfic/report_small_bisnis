@@ -14,12 +14,14 @@
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^6.0.0",
     "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
     "next": "16.2.6",
     "pg": "^8.22.0",
     "prisma": "^6.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "recharts": "^3.9.1"
+    "recharts": "^3.9.1",
+    "sweetalert2": "^11.26.25"
   },
   "devDependencies": {
     "@prisma/client": "^7.8.0",

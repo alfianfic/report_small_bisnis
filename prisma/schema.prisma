@@ -114,3 +114,17 @@ model RiwayatBelanja {
   @@index([productId])
   @@index([tanggal])
 }
+
+model Penggajian {
+  id                  String   @id @default(cuid())
+  nama                String
+  posisi              String
+  gaji                Int
+  tanggal_penggajian   DateTime   // ← ganti jadi lowercase
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tanggal_penggajian])
+  @@index([posisi])
+  @@index([nama])
+}
