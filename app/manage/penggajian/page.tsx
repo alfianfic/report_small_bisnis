@@ -68,7 +68,7 @@ export default function PenggajianPage() {
       
       if (result.status === '✅ Berhasil!') {
         setData(result.data);
-        const uniqueNames = [...new Set(result.data.map((item: Penggajian) => item.nama))];
+        const uniqueNames = [...new Set(result.data.map((item: Penggajian) => item.nama))] as string[];
         setNamaList(uniqueNames);
         applyFilters(result.data, filterMonth, filterPosisi);
       } else {
