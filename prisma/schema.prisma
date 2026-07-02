@@ -128,3 +128,20 @@ model Penggajian {
   @@index([posisi])
   @@index([nama])
 }
+
+model LaporanBulanan {
+  id                  String   @id @default(cuid())
+  bulan               DateTime 
+  menu                String
+  qtyProduksi         Int
+  costPerPortion      Int
+  jumlahCost          Int
+  overhead            Int      @default(0)
+  labaKotor           Int
+  profit              Int
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([bulan])
+  @@index([menu])
+}

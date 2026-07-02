@@ -4,51 +4,34 @@
 
 import { useState, useEffect } from 'react';
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Line,
+  ComposedChart,
 } from 'recharts';
-import { format } from 'date-fns';
-import { id } from 'date-fns/locale';
 
-interface Product {
-  id: string;
-  name: string;
-  sku: string;
-}
-
-interface SalesData {
-  id: string;
-  productId: string;
-  productName?: string;
-  tanggal: string;
-  terjual: number;
-  sisa: number;
-  stokAwal: number;
-  status: string;
-  perluBelanja: boolean;
-  hppPerPorsi: number;
-  hargaJualPerPorsi: number;
-  labaPerPorsi: number;
-  targetHarian: number;
-  thresholdBelanja: number;
-}
-
-interface BelanjaData {
-  id: string;
-  productId: string;
-  productName?: string;
-  tanggal: string;
-  jumlah: number;
-  total: number | null;
-  totalSystem: number | null;
-  hppPerPorsi: number;
-  keterangan: string | null;
+interface LaporanBulanan {
+  bulan: string;
+  items: Array<{
+    id: string;
+    menu: string;
+    qtyProduksi: number;
+    costPerPortion: number;
+    jumlahCost: number;
+    labaKotor: number;
+    profit: number;
+  }>;
+  totalQty: number;
+  totalCost: number;
+  totalOverhead: number;
+  totalLabaKotor: number;
+  totalProfit: number;
 }
 
 const formatRupiah = (angka: number) => {
@@ -60,191 +43,57 @@ const formatRupiah = (angka: number) => {
 };
 
 export default function Beranda() {
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
+  const [data, setData] = useState<LaporanBulanan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedYear, setSelectedYear] = useState('2025');
 
-  // Data mentah dari API
-  const [products, setProducts] = useState<Product[]>([]);
-  const [allSales, setAllSales] = useState<SalesData[]>([]);
-  const [allBelanja, setAllBelanja] = useState<BelanjaData[]>([]);
-
-  // Data hasil filter
-  const [filteredSales, setFilteredSales] = useState<SalesData[]>([]);
-  const [filteredBelanja, setFilteredBelanja] = useState<BelanjaData[]>([]);
-
-  // Fetch semua data
-  const fetchAllData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      // 1. Fetch products
-      const productRes = await fetch('/api/products');
-      const productResult = await productRes.json();
+      const res = await fetch('/api/laporan-bulanan');
+      const result = await res.json();
       
-      let productList: Product[] = [];
-      if (productResult.status === '✅ Berhasil!') {
-        productList = productResult.data;
-        setProducts(productList);
+      if (result.status === '✅ Berhasil!') {
+        setData(result.data);
+      } else {
+        throw new Error(result.error || 'Gagal mengambil data');
       }
-
-      // 2. Fetch semua penjualan dari semua product
-      const salesPromises = productList.map(async (p: Product) => {
-        const res = await fetch(`/api/penjualan?productId=${p.id}`);
-        const result = await res.json();
-        if (result.status === '✅ Berhasil!') {
-          return (result.data.realisasi || []).map((s: any) => ({
-            ...s,
-            productId: p.id,
-            productName: p.name,
-          }));
-        }
-        return [];
-      });
-
-      const allSalesResults = await Promise.all(salesPromises);
-      const flatSales = allSalesResults.flat();
-      setAllSales(flatSales);
-
-      // 3. Fetch semua pembelian dari semua product
-      const belanjaPromises = productList.map(async (p: Product) => {
-        const res = await fetch(`/api/pembelian?productId=${p.id}`);
-        const result = await res.json();
-        if (result.status === '✅ Berhasil!') {
-          return (result.data || []).map((b: any) => ({
-            ...b,
-            productId: p.id,
-            productName: p.name,
-          }));
-        }
-        return [];
-      });
-
-      const allBelanjaResults = await Promise.all(belanjaPromises);
-      const flatBelanja = allBelanjaResults.flat();
-      setAllBelanja(flatBelanja);
-
-      // Set default filter (bulan ini)
-      const now = new Date();
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      
-      setStartDate(firstDay.toISOString().split('T')[0]);
-      setEndDate(lastDay.toISOString().split('T')[0]);
-
-    } catch (err) {
-      setError('Gagal mengambil data');
-      console.error(err);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAllData();
+    fetchData();
   }, []);
 
-  // Filter data berdasarkan tanggal
-  useEffect(() => {
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
+  // Data untuk grafik
+  const chartData = data.map((item) => ({
+    bulan: item.bulan, // Sudah string display dari API
+    qty: item.totalQty,
+    labaKotor: item.totalLabaKotor,
+    profit: item.totalProfit,
+    cost: item.totalCost,
+    overhead: item.totalOverhead,
+  }));
 
-      const filteredSales = allSales.filter(s => {
-        const date = new Date(s.tanggal);
-        return date >= start && date <= end;
-      });
-      setFilteredSales(filteredSales);
+  // Data untuk grafik per menu (stacked)
+  const menuChartData = data.map((item) => {
+    const menuData: any = { bulan: item.bulan };
+    item.items.forEach((menu) => {
+      menuData[menu.menu] = menu.qtyProduksi;
+    });
+    return menuData;
+  });
 
-      const filteredBelanja = allBelanja.filter(b => {
-        const date = new Date(b.tanggal);
-        return date >= start && date <= end;
-      });
-      setFilteredBelanja(filteredBelanja);
-    }
-  }, [startDate, endDate, allSales, allBelanja]);
-
-  // ========================================
-  // KALKULASI METRICS
-  // ========================================
-  
-  // Total Profit
-  const totalProfit = filteredSales.reduce((sum, s) => {
-    return sum + (s.terjual * s.labaPerPorsi);
-  }, 0);
-
-  // Total Penjualan (pendapatan)
-  const totalPenjualan = filteredSales.reduce((sum, s) => {
-    return sum + (s.terjual * s.hargaJualPerPorsi);
-  }, 0);
-
-  // Total Product Terjual
-  const totalTerjual = filteredSales.reduce((sum, s) => sum + s.terjual, 0);
-
-  // Total Pengeluaran (belanja)
-  const totalPengeluaran = filteredBelanja.reduce((sum, b) => {
-    return sum + (b.total || b.totalSystem || 0);
-  }, 0);
-
-  // ========================================
-  // DATA GRAFIK
-  // ========================================
-
-  // Grafik 1: Penjualan vs Pengeluaran (harian)
-  const chartData1 = filteredSales.reduce((acc: any[], sale) => {
-    const date = sale.tanggal.split('T')[0];
-    const existing = acc.find(item => item.tanggal === date);
-    
-    const pendapatan = sale.terjual * sale.hargaJualPerPorsi;
-    const belanjaHari = filteredBelanja
-      .filter(b => b.tanggal.split('T')[0] === date)
-      .reduce((sum, b) => sum + (b.total || b.totalSystem || 0), 0);
-    
-    if (existing) {
-      existing.penjualan += pendapatan;
-      existing.pengeluaran += belanjaHari;
-    } else {
-      acc.push({
-        tanggal: date,
-        penjualan: pendapatan,
-        pengeluaran: belanjaHari,
-        label: new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-      });
-    }
-    return acc;
-  }, []).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-
-  // Grafik 2: Penjualan Harian per Product
-  const chartData2 = filteredSales.reduce((acc: any[], sale) => {
-    const date = sale.tanggal.split('T')[0];
-    const existing = acc.find(item => item.tanggal === date);
-    
-    if (existing) {
-      const productKey = `product_${sale.productId}`;
-      existing[productKey] = (existing[productKey] || 0) + sale.terjual;
-    } else {
-      const newEntry: any = {
-        tanggal: date,
-        label: new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-      };
-      products.forEach(p => {
-        newEntry[`product_${p.id}`] = 0;
-      });
-      newEntry[`product_${sale.productId}`] = sale.terjual;
-      acc.push(newEntry);
-    }
-    return acc;
-  }, []).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
-
-  // Warna untuk masing-masing product
-  const productColors: Record<string, string> = {
-    [products[0]?.id || '']: '#3B82F6',
-    [products[1]?.id || '']: '#10B981',
-    [products[2]?.id || '']: '#F59E0B',
+  // Warna untuk menu
+  const menuColors: Record<string, string> = {
+    'Nasi Gudeg Campur': '#3B82F6',
+    'Ayam Bakar Bumbu Rujak': '#10B981',
+    'Ayam Bakar Bumbu Kecap': '#F59E0B',
   };
 
   if (loading) {
@@ -252,7 +101,7 @@ export default function Beranda() {
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Memuat data...</p>
+          <p className="mt-4 text-gray-600">Memuat data laporan...</p>
         </div>
       </div>
     );
@@ -264,7 +113,7 @@ export default function Beranda() {
         <div className="text-center text-red-600">
           <p>❌ {error}</p>
           <button 
-            onClick={fetchAllData}
+            onClick={fetchData}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           >
             Coba Lagi
@@ -274,173 +123,151 @@ export default function Beranda() {
     );
   }
 
-  // Cek apakah ada data
-  const hasData = filteredSales.length > 0 || filteredBelanja.length > 0;
-
-  if (!hasData) {
+  if (!data || data.length === 0) {
     return (
-      <div className="w-full max-w-7xl mx-auto">
-        {/* Filter Date Range */}
-        <div className="flex justify-end items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-          <span className="text-sm text-gray-500">📅 Filter Tanggal:</span>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-          />
-          <span className="text-gray-400">—</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-          />
-        </div>
-
-        <div className="flex items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-gray-100">
-          <div className="text-center">
-            <p className="text-gray-400 text-lg">📭 Belum ada data</p>
-            <p className="text-sm text-gray-300 mt-1">Silakan input penjualan atau pembelian terlebih dahulu</p>
-          </div>
+      <div className="flex items-center justify-center py-20 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="text-center">
+          <p className="text-gray-400 text-lg">📭 Belum ada data laporan</p>
+          <p className="text-sm text-gray-300 mt-1">Silakan seed data laporan bulanan terlebih dahulu</p>
         </div>
       </div>
     );
   }
 
+  // Total keseluruhan
+  const totalQty = data.reduce((sum, d) => sum + d.totalQty, 0);
+  const totalProfit = data.reduce((sum, d) => sum + d.totalProfit, 0);
+  const totalLabaKotor = data.reduce((sum, d) => sum + d.totalLabaKotor, 0);
+  const totalCost = data.reduce((sum, d) => sum + d.totalCost, 0);
+  const totalOverhead = data.reduce((sum, d) => sum + d.totalOverhead, 0);
+
   return (
     <div className="w-full max-w-7xl mx-auto">
-      {/* Filter Date Range */}
-      <div className="flex justify-end items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <span className="text-sm text-gray-500">📅 Filter Tanggal:</span>
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-        />
-        <span className="text-gray-400">—</span>
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-        />
-        <span className="text-xs text-gray-400 ml-2">
-          {filteredSales.length} transaksi
-        </span>
-      </div>
-
-      {/* 4 Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-6">
-          <p className="text-xs font-medium text-blue-600 uppercase tracking-wider">Total Profit</p>
-          <p className="text-2xl font-bold text-gray-800 mt-2">{formatRupiah(totalProfit)}</p>
-          <p className="text-sm text-gray-500 mt-1">Laba bersih periode ini</p>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">📊 Laporan Tahunan {selectedYear}</h2>
+          <p className="text-sm text-gray-400">Data penjualan & produksi per bulan</p>
         </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-green-100 p-6">
-          <p className="text-xs font-medium text-green-600 uppercase tracking-wider">Total Penjualan</p>
-          <p className="text-2xl font-bold text-gray-800 mt-2">{formatRupiah(totalPenjualan)}</p>
-          <p className="text-sm text-gray-500 mt-1">Pendapatan kotor</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-orange-100 p-6">
-          <p className="text-xs font-medium text-orange-600 uppercase tracking-wider">Total Product Terjual</p>
-          <p className="text-2xl font-bold text-gray-800 mt-2">{totalTerjual} porsi</p>
-          <p className="text-sm text-gray-500 mt-1">Unit terjual keseluruhan</p>
-        </div>
-
-        <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-6">
-          <p className="text-xs font-medium text-red-600 uppercase tracking-wider">Total Pengeluaran</p>
-          <p className="text-2xl font-bold text-gray-800 mt-2">{formatRupiah(totalPengeluaran)}</p>
-          <p className="text-sm text-gray-500 mt-1">Total belanja stok</p>
+        <div className="flex items-center gap-2">
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+          >
+            <option value="2025">2025</option>
+          </select>
         </div>
       </div>
 
-      {/* 2 Grafik */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Grafik 1: Penjualan vs Pengeluaran */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">
-            📊 Perbandingan Penjualan vs Pengeluaran
-          </h3>
-          {chartData1.length === 0 ? (
-            <div className="flex items-center justify-center h-[300px] text-gray-400">
-              Tidak ada data
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData1}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} />
-                <YAxis 
-                  tick={{ fontSize: 11, fill: '#888' }}
-                  tickFormatter={(value) => `Rp${(value / 1000).toFixed(0)}K`}
-                />
-                <Tooltip 
-                  formatter={(value: any) => formatRupiah(value)}
-                  labelFormatter={(label) => `Tanggal: ${label}`}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="penjualan" 
-                  stroke="#3B82F6" 
-                  strokeWidth={2}
-                  name="Penjualan"
-                  dot={{ r: 4 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="pengeluaran" 
-                  stroke="#EF4444" 
-                  strokeWidth={2}
-                  name="Pengeluaran"
-                  dot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+      {/* 4 Cards Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-4 text-white">
+          <p className="text-sm opacity-80">Total Laba Kotor</p>
+          <p className="text-2xl font-bold">{formatRupiah(totalLabaKotor)}</p>
         </div>
-
-        {/* Grafik 2: Penjualan per Product */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">
-            📈 Penjualan Harian per Product
-          </h3>
-          {chartData2.length === 0 ? (
-            <div className="flex items-center justify-center h-[300px] text-gray-400">
-              Tidak ada data
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData2}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#888' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#888' }} />
-                <Tooltip />
-                <Legend />
-                {products.map((p) => (
-                  <Line
-                    key={p.id}
-                    type="monotone"
-                    dataKey={`product_${p.id}`}
-                    stroke={productColors[p.id] || '#888'}
-                    strokeWidth={2}
-                    name={p.name}
-                    dot={{ r: 3 }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-4 text-white">
+          <p className="text-sm opacity-80">Total Profit</p>
+          <p className="text-2xl font-bold">{formatRupiah(totalProfit)}</p>
+        </div>
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-4 text-white">
+          <p className="text-sm opacity-80">Total Cost</p>
+          <p className="text-2xl font-bold">{formatRupiah(totalCost)}</p>
+        </div>
+        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl p-4 text-white">
+          <p className="text-sm opacity-80">Total Overhead</p>
+          <p className="text-2xl font-bold">{formatRupiah(totalOverhead)}</p>
+          <p className="text-xs opacity-70 mt-1">{data.length} bulan</p>
         </div>
       </div>
 
-      {/* Info tambahan */}
-      <div className="mt-6 text-center text-xs text-gray-400">
-        Data {filteredSales.length} transaksi penjualan & {filteredBelanja.length} transaksi pembelian
+      {/* Grafik 2: Laba Kotor vs Profit vs Cost */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">
+          📊 Laba Kotor vs Profit vs Cost
+        </h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="bulan" tick={{ fontSize: 10, fill: '#888' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => `Rp${(v/1000000).toFixed(0)}M`} />
+            <Tooltip formatter={(value: any) => formatRupiah(value)} />
+            <Legend />
+            <Bar dataKey="labaKotor" fill="#10B981" name="Laba Kotor" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="profit" fill="#3B82F6" name="Profit" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="cost" fill="#aa1b4b" name="Cost" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="overhead" fill="#EF4444" name="Overhead" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Grafik 3: Produksi per Menu (Stacked) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">
+          📊 Produksi per Menu (Stacked)
+        </h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={menuChartData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="bulan" tick={{ fontSize: 10, fill: '#888' }} />
+            <YAxis tick={{ fontSize: 11, fill: '#888' }} />
+            <Tooltip />
+            <Legend />
+            {Object.keys(menuColors).map((menu) => (
+              <Bar
+                key={menu}
+                dataKey={menu}
+                stackId="stack"
+                fill={menuColors[menu]}
+                name={menu}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Tabel Detail */}
+      <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">📋 Detail Laporan Bulanan</h3>
+        </div>
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase">Bulan</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase">Menu</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Qty</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Cost/Porsi</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Total Cost</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Laba Kotor</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((item) => (
+                item.items.map((menu, idx) => (
+                  <tr key={`${item.bulan}-${menu.menu}`} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    {idx === 0 && (
+                      <td className="px-3 py-2 font-medium text-gray-800" rowSpan={item.items.length}>
+                        {item.bulan}
+                      </td>
+                    )}
+                    <td className="px-3 py-2 text-gray-600">{menu.menu}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{menu.qtyProduksi.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{formatRupiah(menu.costPerPortion)}</td>
+                    <td className="px-3 py-2 text-right text-gray-700">{formatRupiah(menu.jumlahCost)}</td>
+                    <td className="px-3 py-2 text-right text-green-600">{formatRupiah(menu.labaKotor)}</td>
+                    <td className="px-3 py-2 text-right text-blue-600">{formatRupiah(menu.profit)}</td>
+                  </tr>
+                ))
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-400">
+          Total {data.length} bulan · {data.reduce((sum, d) => sum + d.items.length, 0)} data menu
+        </div>
       </div>
     </div>
   );

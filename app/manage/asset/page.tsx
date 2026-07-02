@@ -8,10 +8,10 @@ interface AssetItem {
   id: string;
   name: string;
   category: string;
-  purchaseDate: string;
   quantity: number;
   price: number;
   total: number;
+  perMonth: number;
   status: 'Baik' | 'Rusak' | 'Perbaikan';
 }
 
@@ -27,48 +27,68 @@ export default function AssetPage() {
   const [assets] = useState<AssetItem[]>([
     {
       id: '1',
-      name: 'Kompor Gas 2 Tungku',
-      category: 'Peralatan Masak',
-      purchaseDate: '2026-01-15',
-      quantity: 3,
-      price: 1500000,
-      total: 4500000,
+      name: 'Biaya Air, Listrik',
+      category: 'Overhead',
+      quantity: 1,
+      price: 555000,
+      total: 6660000,
+      perMonth: 555000,
       status: 'Baik',
     },
     {
       id: '2',
-      name: 'Kulkas 2 Pintu',
-      category: 'Elektronik',
-      purchaseDate: '2026-02-01',
+      name: 'Biaya Bahan Bakar',
+      category: 'Overhead',
       quantity: 1,
-      price: 4500000,
-      total: 4500000,
+      price: 5200000,
+      total: 62400000,
+      perMonth: 5200000,
       status: 'Baik',
     },
     {
       id: '3',
-      name: 'Meja Kayu',
-      category: 'Furniture',
-      purchaseDate: '2026-03-10',
-      quantity: 5,
-      price: 750000,
-      total: 3750000,
-      status: 'Perbaikan',
+      name: 'Biaya Penyusutan Aset',
+      category: 'Overhead',
+      quantity: 39,
+      price: 28164775,
+      total: 28164775,
+      perMonth: 2347065,
+      status: 'Baik',
     },
     {
       id: '4',
-      name: 'Blender',
-      category: 'Peralatan Masak',
-      purchaseDate: '2026-04-20',
-      quantity: 2,
-      price: 850000,
-      total: 1700000,
+      name: 'Biaya Sewa',
+      category: 'Overhead',
+      quantity: 1,
+      price: 333333,
+      total: 3999996,
+      perMonth: 333333,
+      status: 'Baik',
+    },
+    {
+      id: '5',
+      name: 'Biaya Retribusi Pasar',
+      category: 'Overhead',
+      quantity: 3,
+      price: 480000,
+      total: 5760000,
+      perMonth: 480000,
+      status: 'Baik',
+    },
+    {
+      id: '6',
+      name: 'Biaya Bahan Penolong',
+      category: 'Overhead',
+      quantity: 6,
+      price: 2788500,
+      total: 33462000,
+      perMonth: 2788500,
       status: 'Baik',
     },
   ]);
 
-  const [loading, setLoading] = useState(false);
   const totalAset = assets.reduce((s, i) => s + i.total, 0);
+  const totalPerMonth = assets.reduce((s, i) => s + i.perMonth, 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -79,39 +99,33 @@ export default function AssetPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Memuat data asset...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">🏦 Asset</h1>
-            <p className="text-sm text-gray-400">Kelola aset dan inventaris</p>
+            <h1 className="text-2xl font-bold text-gray-800">🏦 Asset & Overhead</h1>
+            <p className="text-sm text-gray-400">Kelola aset dan biaya overhead pabrik</p>
           </div>
-          <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Tambah Asset
-          </button>
         </div>
 
-        {/* Total Asset */}
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 mb-6 text-white">
-          <p className="text-sm opacity-80">Total Nilai Asset</p>
-          <p className="text-3xl font-bold">{formatRupiah(totalAset)}</p>
-          <p className="text-xs opacity-70 mt-1">{assets.length} item terdaftar</p>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-4 text-white">
+            <p className="text-sm opacity-80">Total Asset</p>
+            <p className="text-2xl font-bold">{formatRupiah(totalAset)}</p>
+            <p className="text-xs opacity-70 mt-1">{assets.length} item</p>
+          </div>
+          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-4 text-white">
+            <p className="text-sm opacity-80">Overhead per Bulan</p>
+            <p className="text-2xl font-bold">{formatRupiah(totalPerMonth)}</p>
+            <p className="text-xs opacity-70 mt-1">Biaya tetap bulanan</p>
+          </div>
+          <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-4 text-white">
+            <p className="text-sm opacity-80">Overhead per Tahun</p>
+            <p className="text-2xl font-bold">{formatRupiah(totalPerMonth * 12)}</p>
+            <p className="text-xs opacity-70 mt-1">Total biaya overhead tahunan</p>
+          </div>
         </div>
 
         {/* Tabel */}
@@ -122,38 +136,38 @@ export default function AssetPage() {
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Nama</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Kategori</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Tgl Beli</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Qty</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Harga</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Harga/Bulan</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Total</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Per Bulan</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Status</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {assets.map((item) => (
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="px-4 py-3 font-medium text-gray-800">{item.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{item.category}</td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {new Date(item.purchaseDate).toLocaleDateString('id-ID')}
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-xs">
+                        {item.category}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{item.quantity}</td>
                     <td className="px-4 py-3 text-gray-600">{formatRupiah(item.price)}</td>
                     <td className="px-4 py-3 font-medium text-gray-700">{formatRupiah(item.total)}</td>
+                    <td className="px-4 py-3 font-medium text-blue-600">{formatRupiah(item.perMonth)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(item.status)}`}>
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <button className="p-1 text-blue-500 hover:text-blue-700">✏️</button>
-                      <button className="p-1 text-red-500 hover:text-red-700 ml-1">🗑️</button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-400">
+            Total {assets.length} item overhead
           </div>
         </div>
       </div>
