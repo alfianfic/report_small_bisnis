@@ -15,120 +15,109 @@ enum StatusStok {
   belum_terjadi
 }
 
-model Product {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  sku             String   @unique
-  hppPerPorsi     Int      @default(13000)
-  hargaJualPerPorsi Int    @default(15000)
-  labaPerPorsi    Int      @default(2000)
-  targetHarian    Int      @default(200)
-  stokAwal        Int      @default(500)
-  thresholdBelanja Int    @default(200)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  realisasi       RealisasiHarian[]
-  riwayatBelanja  RiwayatBelanja[]
-  masterData      MasterData[]
-
-  @@index([sku])
-  @@index([isActive])
-}
-
-model MasterData {
-  id              String   @id @default(cuid())
-  productId       String
-  tanggalBerlaku  DateTime @default(now())
-  hppPerPorsi     Int      @default(13000)
-  hargaJualPerPorsi Int    @default(15000)
-  labaPerPorsi    Int      @default(2000)
-  targetHarian    Int      @default(200)
-  stokAwal        Int      @default(500)
-  thresholdBelanja Int    @default(200)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // ✅ RELASI KE PRODUCT
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  
-  // ✅ OPPOSITE RELATION KE REALISASI & BELANJA
-  realisasi       RealisasiHarian[]
-  riwayatBelanja  RiwayatBelanja[]
-
-  @@index([productId])
-  @@index([tanggalBerlaku])
-  @@unique([productId, tanggalBerlaku])
-}
-
-model RealisasiHarian {
+// ========================================
+// 1. BAHAN BAKU (MASTER)
+// ========================================
+model BahanBaku {
   id          String   @id @default(cuid())
-  productId   String
-  tanggal     DateTime @default(now())
-  terjual     Int      @default(0)
-  sisa        Int      @default(0)
-  stokAwal    Int      @default(0)
-  status      StatusStok @default(belum_terjadi)
-  perluBelanja Boolean @default(false)
-  masterDataId String
-  
-  // Snapshot
-  hppPerPorsi     Int
-  hargaJualPerPorsi Int
-  labaPerPorsi    Int
-  targetHarian    Int
-  thresholdBelanja Int
-  
+  nama        String
+  satuan      String   // Kg, Pcs, Lbr, Ml, Gr
+  harga       Int      // Harga per satuan
+  stok        Float    @default(0)  // Stok saat ini
+  stokMinimal Float    @default(0)  // Target minimal stok
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  // ✅ RELASI KE PRODUCT & MASTERDATA
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  masterData  MasterData @relation(fields: [masterDataId], references: [id], onDelete: Cascade)
 
-  @@index([productId])
-  @@index([tanggal])
-  @@unique([productId, tanggal])
-}
+  produkDetail ProdukBahanBaku[]
+  pembelian   PembelianBahanBaku[]
 
-model RiwayatBelanja {
-  id          String   @id @default(cuid())
-  productId   String
-  tanggal     DateTime @default(now())
-  jumlah      Int?
-  total       Int?
-  jumlahSystem Int?
-  totalSystem  Int?
-  hppPerPorsi  Int
-  keterangan  String?
-  masterDataId String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // ✅ RELASI KE PRODUCT & MASTERDATA
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  masterData  MasterData @relation(fields: [masterDataId], references: [id], onDelete: Cascade)
-
-  @@index([productId])
-  @@index([tanggal])
-}
-
-model Penggajian {
-  id                  String   @id @default(cuid())
-  nama                String
-  posisi              String
-  gaji                Int
-  tanggal_penggajian   DateTime   // ← ganti jadi lowercase
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  @@index([tanggal_penggajian])
-  @@index([posisi])
+  @@unique([nama])
   @@index([nama])
 }
 
+// ========================================
+// 2. PRODUK
+// ========================================
+model Produk {
+  id          String   @id @default(cuid())
+  nama        String
+  sku         String   @unique
+  hpp         Int      // Harga Pokok Produksi (dari resep)
+  hargaJual   Int      // Harga jual per porsi
+  stok        Float    @default(0)  // Stok produk (dihitung dari bahan baku)
+  targetStok  Float    @default(0)  // Target minimal stok
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bahanBaku   ProdukBahanBaku[]
+  penjualan   Penjualan[]
+
+  @@index([sku])
+  @@index([nama])
+}
+
+// ========================================
+// 3. BAHAN BAKU PER PRODUK (RESEP)
+// ========================================
+model ProdukBahanBaku {
+  id          String   @id @default(cuid())
+  produkId    String
+  bahanBakuId String
+  qty         Float    // Qty bahan baku per porsi produk
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  produk      Produk    @relation(fields: [produkId], references: [id], onDelete: Cascade)
+  bahanBaku   BahanBaku @relation(fields: [bahanBakuId], references: [id], onDelete: Cascade)
+
+  @@unique([produkId, bahanBakuId])
+  @@index([produkId])
+  @@index([bahanBakuId])
+}
+
+// ========================================
+// 4. PEMBELIAN BAHAN BAKU
+// ========================================
+model PembelianBahanBaku {
+  id          String   @id @default(cuid())
+  tanggal     DateTime @default(now())
+  bahanBakuId String
+  qty         Float
+  harga       Int      // Harga saat pembelian
+  total       Int      // qty × harga
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bahanBaku   BahanBaku @relation(fields: [bahanBakuId], references: [id], onDelete: Cascade)
+
+  @@index([tanggal])
+  @@index([bahanBakuId])
+}
+
+// ========================================
+// 5. PENJUALAN
+// ========================================
+model Penjualan {
+  id          String   @id @default(cuid())
+  tanggal     DateTime @default(now())
+  produkId    String
+  qty         Float
+  hargaJual   Int      // Snapshot harga jual saat transaksi
+  hpp         Int      // Snapshot HPP saat transaksi
+  profit      Int      // (hargaJual - hpp) × qty
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  produk      Produk @relation(fields: [produkId], references: [id], onDelete: Cascade)
+
+  @@index([tanggal])
+  @@index([produkId])
+}
+
+// ========================================
+// 6. LAPORAN BULANAN (EXISTING)
+// ========================================
 model LaporanBulanan {
   id                  String   @id @default(cuid())
   bulan               DateTime
@@ -137,12 +126,48 @@ model LaporanBulanan {
   costPerPortion      Int
   jumlahCost          Int
   overhead            Int      @default(0)
-  gaji                Int      @default(0) 
+  gaji                Int      @default(0)
   labaKotor           Int
-  profit              Int      
+  profit              Int
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   @@index([bulan])
   @@index([menu])
+}
+
+// ========================================
+// 7. PENGGALIAN (EXISTING)
+// ========================================
+model Penggajian {
+  id                  String   @id @default(cuid())
+  nama                String
+  posisi              String   // "Kitchen" atau "Seller"
+  gaji                Int
+  tanggal_penggajian  DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tanggal_penggajian])
+  @@index([posisi])
+  @@index([nama])
+}
+
+// ========================================
+// 8. ASSET & OVERHEAD (EXISTING)
+// ========================================
+model Asset {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  quantity    Int
+  price       Int
+  total       Int
+  perMonth    Int
+  status      String   @default("Baik") // Baik, Rusak, Perbaikan
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
 }
