@@ -3,67 +3,19 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
-function calculateBelanja(data: {
-  jumlah?: number;
-  total?: number;
-  hppPerPorsi: number;
-}) {
-  const { jumlah, total, hppPerPorsi } = data;
-
-  if (!jumlah && !total) {
-    throw new Error('Isi salah satu: Jumlah atau Total');
-  }
-
-  if (jumlah && !total) {
-    return {
-      jumlah,
-      total: null,
-      jumlahSystem: null,
-      totalSystem: jumlah * hppPerPorsi,
-    };
-  }
-
-  if (total && !jumlah) {
-    return {
-      jumlah: null,
-      total,
-      jumlahSystem: Math.floor(total / hppPerPorsi),
-      totalSystem: null,
-    };
-  }
-
-  if (jumlah && total) {
-    return {
-      jumlah,
-      total,
-      jumlahSystem: null,
-      totalSystem: null,
-    };
-  }
-
-  return null;
-}
-
+// ========================================
 // GET: Ambil semua data pembelian
+// ========================================
 export async function GET() {
   try {
-    const pembelian = await prisma.riwayatBelanja.findMany({
-      orderBy: { tanggal: 'asc' },
+    const pembelian = await prisma.pembelianBahanBaku.findMany({
+      orderBy: { tanggal: 'desc' },
       include: {
-        product: {
+        bahanBaku: {
           select: {
             id: true,
-            name: true,
-            sku: true,
-            hppPerPorsi: true,
-            hargaJualPerPorsi: true,
-          },
-        },
-        masterData: {
-          select: {
-            id: true,
-            tanggalBerlaku: true,
-            hppPerPorsi: true,
+            nama: true,
+            satuan: true,
           },
         },
       },
@@ -83,158 +35,129 @@ export async function GET() {
   }
 }
 
+// ========================================
 // POST: Tambah pembelian baru
+// ========================================
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tanggal, jumlah, total, keterangan, productId } = body;
+    const { tanggal, bahanBakuId, qty, harga } = body;
 
-    if (!productId) {
+    // Validasi
+    if (!tanggal || !bahanBakuId || !qty) {
       return NextResponse.json({
         status: '❌ GAGAL',
-        error: 'productId wajib diisi',
+        error: 'Tanggal, bahan baku, dan qty wajib diisi',
       }, { status: 400 });
     }
 
-    if (!tanggal) {
-      return NextResponse.json({
-        status: '❌ GAGAL',
-        error: 'Tanggal wajib diisi',
-      }, { status: 400 });
-    }
-
-    // Cek product
-    const product = await prisma.product.findUnique({
-      where: { id: productId, isActive: true },
+    // Cek bahan baku
+    const bahanBaku = await prisma.bahanBaku.findUnique({
+      where: { id: bahanBakuId },
     });
 
-    if (!product) {
+    if (!bahanBaku) {
       return NextResponse.json({
         status: '❌ GAGAL',
-        error: 'Produk tidak ditemukan atau tidak aktif',
+        error: 'Bahan baku tidak ditemukan',
       }, { status: 404 });
     }
 
-    // Ambil master yang berlaku untuk tanggal ini
-    const tanggalObj = new Date(tanggal);
-    tanggalObj.setHours(0, 0, 0, 0);
-
-    const master = await prisma.masterData.findFirst({
-      where: {
-        productId: productId,
-        tanggalBerlaku: { lte: tanggalObj },
-      },
-      orderBy: { tanggalBerlaku: 'desc' },
-    });
-
-    if (!master) {
-      return NextResponse.json({
-        status: '❌ GAGAL',
-        error: `Tidak ada master yang berlaku untuk tanggal ${tanggal}`,
-      }, { status: 404 });
-    }
-
-    // Hitung otomatis pakai hpp dari master
-    const result = calculateBelanja({
-      jumlah: jumlah || undefined,
-      total: total || undefined,
-      hppPerPorsi: master.hppPerPorsi,
-    });
-
-    if (!result) {
-      return NextResponse.json({
-        status: '❌ GAGAL',
-        error: 'Isi salah satu: Jumlah atau Total',
-      }, { status: 400 });
-    }
+    // Gunakan harga dari master jika tidak diisi
+    const hargaFinal = harga || bahanBaku.harga;
+    const totalFinal = qty * hargaFinal;
 
     // Simpan pembelian
-    const pembelian = await prisma.riwayatBelanja.create({
+    const pembelian = await prisma.pembelianBahanBaku.create({
       data: {
-        tanggal: tanggalObj,
-        productId: productId,
-        masterDataId: master.id,
-        jumlah: result.jumlah,
-        total: result.total,
-        jumlahSystem: result.jumlahSystem,
-        totalSystem: result.totalSystem,
-        hppPerPorsi: master.hppPerPorsi,
-        keterangan: keterangan || null,
+        tanggal: new Date(tanggal),
+        bahanBakuId: bahanBakuId,
+        qty: qty,
+        harga: hargaFinal,
+        total: totalFinal,
       },
       include: {
-        product: {
+        bahanBaku: {
           select: {
-            name: true,
-            sku: true,
+            nama: true,
+            satuan: true,
           },
         },
       },
     });
 
-    // Update stok di realisasi harian (jika ada)
-    const realisasiHariIni = await prisma.realisasiHarian.findUnique({
-      where: {
-        productId_tanggal: {
-          productId: productId,
-          tanggal: tanggalObj,
+    // ✅ UPDATE STOK BAHAN BAKU
+    await prisma.bahanBaku.update({
+      where: { id: bahanBakuId },
+      data: {
+        stok: {
+          increment: qty,
         },
       },
     });
 
-    if (realisasiHariIni) {
-      // Hitung ulang total belanja di hari ini
-      const startOfDay = new Date(tanggalObj);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(tanggalObj);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const allBelanja = await prisma.riwayatBelanja.findMany({
-        where: {
-          productId: productId,
-          tanggal: { gte: startOfDay, lte: endOfDay },
-        },
-      });
-
-      let totalBelanjaEfektif = 0;
-      for (const b of allBelanja) {
-        totalBelanjaEfektif += (b.jumlah || b.jumlahSystem || 0);
-      }
-
-      // Cari hari sebelumnya
-      const hariSebelumnya = await prisma.realisasiHarian.findFirst({
-        where: {
-          productId: productId,
-          tanggal: { lt: tanggalObj },
-        },
-        orderBy: { tanggal: 'desc' },
-      });
-
-      const stokSebelumnya = hariSebelumnya?.sisa || 0;
-      const stokAwalBaru = stokSebelumnya + totalBelanjaEfektif;
-      const sisaBaru = stokAwalBaru - realisasiHariIni.terjual;
-
-      await prisma.realisasiHarian.update({
-        where: {
-          id: realisasiHariIni.id,
-        },
-        data: {
-          stokAwal: stokAwalBaru,
-          sisa: sisaBaru,
-          status: sisaBaru === 0 ? 'habis' 
-            : sisaBaru < master.targetHarian ? 'waspada' 
-            : 'aman',
-          perluBelanja: sisaBaru < master.thresholdBelanja,
-        },
-      });
-    }
-
     return NextResponse.json({
       status: '✅ Berhasil!',
       data: pembelian,
-      message: `Pembelian untuk ${pembelian.product.name} berhasil ditambahkan`,
+      message: 'Pembelian berhasil ditambahkan',
     });
   } catch (error: any) {
     console.error('Error creating pembelian:', error);
+    return NextResponse.json({
+      status: '❌ GAGAL',
+      error: error.message,
+    }, { status: 500 });
+  }
+}
+
+// ========================================
+// DELETE: Hapus pembelian
+// ========================================
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'ID wajib diisi',
+      }, { status: 400 });
+    }
+
+    // Ambil data pembelian sebelum dihapus (untuk rollback stok)
+    const pembelian = await prisma.pembelianBahanBaku.findUnique({
+      where: { id },
+    });
+
+    if (!pembelian) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'Data pembelian tidak ditemukan',
+      }, { status: 404 });
+    }
+
+    // ✅ ROLLBACK STOK BAHAN BAKU
+    await prisma.bahanBaku.update({
+      where: { id: pembelian.bahanBakuId },
+      data: {
+        stok: {
+          decrement: pembelian.qty,
+        },
+      },
+    });
+
+    // Hapus data pembelian
+    await prisma.pembelianBahanBaku.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      status: '✅ Berhasil!',
+      message: 'Data pembelian berhasil dihapus',
+    });
+  } catch (error: any) {
+    console.error('Error deleting pembelian:', error);
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message,
