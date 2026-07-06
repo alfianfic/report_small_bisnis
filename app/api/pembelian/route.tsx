@@ -1,5 +1,7 @@
 // app/api/pembelian/route.ts - bagian DELETE
 
+import { NextResponse } from "next/server";
+
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
