@@ -8,17 +8,8 @@ import { NextResponse } from 'next/server';
 // ========================================
 export async function GET() {
   try {
-    const pembelian = await prisma.pembelianBahanBaku.findMany({
+    const pembelian = await prisma.pembelian.findMany({
       orderBy: { tanggal: 'desc' },
-      include: {
-        bahanBaku: {
-          select: {
-            id: true,
-            nama: true,
-            satuan: true,
-          },
-        },
-      },
     });
 
     return NextResponse.json({
@@ -41,60 +32,52 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tanggal, bahanBakuId, qty, harga } = body;
+    const { tanggal, kategori, nama, detail, qty, harga, total, bahanBakuId } = body;
 
     // Validasi
-    if (!tanggal || !bahanBakuId || !qty) {
+    if (!tanggal || !kategori || !nama || !qty || !harga) {
       return NextResponse.json({
         status: '❌ GAGAL',
-        error: 'Tanggal, bahan baku, dan qty wajib diisi',
+        error: 'Tanggal, kategori, nama, qty, dan harga wajib diisi',
       }, { status: 400 });
     }
 
-    // Cek bahan baku
-    const bahanBaku = await prisma.bahanBaku.findUnique({
-      where: { id: bahanBakuId },
-    });
+    const qtyNum = Number(qty);
+    const hargaNum = Number(harga);
+    const totalNum = total || qtyNum * hargaNum;
 
-    if (!bahanBaku) {
-      return NextResponse.json({
-        status: '❌ GAGAL',
-        error: 'Bahan baku tidak ditemukan',
-      }, { status: 404 });
-    }
-
-    // Gunakan harga dari master jika tidak diisi
-    const hargaFinal = harga || bahanBaku.harga;
-    const totalFinal = qty * hargaFinal;
-
-    // Simpan pembelian
-    const pembelian = await prisma.pembelianBahanBaku.create({
+    // Simpan pembelian (tanpa relasi)
+    const pembelian = await prisma.pembelian.create({
       data: {
         tanggal: new Date(tanggal),
-        bahanBakuId: bahanBakuId,
-        qty: qty,
-        harga: hargaFinal,
-        total: totalFinal,
-      },
-      include: {
-        bahanBaku: {
-          select: {
-            nama: true,
-            satuan: true,
-          },
-        },
+        kategori,
+        nama,
+        detail: detail || null,
+        qty: qtyNum,
+        harga: hargaNum,
+        total: totalNum,
+        // bahanBakuId dihapus karena tidak ada relasi
       },
     });
 
-    // ✅ UPDATE STOK BAHAN BAKU
-    await prisma.bahanBaku.update({
-      where: { id: bahanBakuId },
-      data: {
-        stok: {
-          increment: qty,
-        },
-      },
-    });
+    // ✅ UPDATE STOK BAHAN BAKU (hanya jika kategori = Bahan Baku)
+    // Kita update manual via nama bahan baku
+    if (kategori === 'Bahan Baku') {
+      const bahanBaku = await prisma.bahanBaku.findFirst({
+        where: { nama: nama },
+      });
+
+      if (bahanBaku) {
+        await prisma.bahanBaku.update({
+          where: { id: bahanBaku.id },
+          data: {
+            stok: {
+              increment: qtyNum,
+            },
+          },
+        });
+      }
+    }
 
     return NextResponse.json({
       status: '✅ Berhasil!',
@@ -125,8 +108,8 @@ export async function DELETE(request: Request) {
       }, { status: 400 });
     }
 
-    // Ambil data pembelian sebelum dihapus (untuk rollback stok)
-    const pembelian = await prisma.pembelianBahanBaku.findUnique({
+    // Ambil data pembelian sebelum dihapus
+    const pembelian = await prisma.pembelian.findUnique({
       where: { id },
     });
 
@@ -137,18 +120,26 @@ export async function DELETE(request: Request) {
       }, { status: 404 });
     }
 
-    // ✅ ROLLBACK STOK BAHAN BAKU
-    await prisma.bahanBaku.update({
-      where: { id: pembelian.bahanBakuId },
-      data: {
-        stok: {
-          decrement: pembelian.qty,
-        },
-      },
-    });
+    // ✅ ROLLBACK STOK BAHAN BAKU (jika kategori Bahan Baku)
+    if (pembelian.kategori === 'Bahan Baku') {
+      const bahanBaku = await prisma.bahanBaku.findFirst({
+        where: { nama: pembelian.nama },
+      });
+
+      if (bahanBaku) {
+        await prisma.bahanBaku.update({
+          where: { id: bahanBaku.id },
+          data: {
+            stok: {
+              decrement: pembelian.qty,
+            },
+          },
+        });
+      }
+    }
 
     // Hapus data pembelian
-    await prisma.pembelianBahanBaku.delete({
+    await prisma.pembelian.delete({
       where: { id },
     });
 

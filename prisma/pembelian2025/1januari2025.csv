@@ -1,96 +1,11 @@
 tanggal,kategori,nama,detail,qty,harga,total
-2025-01-01,Bahan Baku,Bahan baku,-,1,9234444,9234444
-2025-01-01,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-01,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-01,Operasional,Arang,-,1,100000,100000
-2025-01-01,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-02,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-02,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-03,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-03,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-03,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-04,Bahan Baku,Bahan baku,-,1,9159444,9159444
-2025-01-04,Operasional,Gas,8 Tabung,8,16000,128000
-2025-01-04,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-05,Operasional,Gas,8 Tabung,8,16000,128000
-2025-01-05,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-05,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-06,Operasional,Gas,14 Tabung,14,16000,224000
-2025-01-06,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-07,Bahan Baku,Bahan baku,-,1,11356096,11356096
-2025-01-07,Operasional,Gas,14 Tabung,14,16000,224000
-2025-01-07,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-07,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-08,Operasional,Gas,6 Tabung,6,16000,96000
-2025-01-08,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-08,Operasional,Arang,-,1,100000,100000
-2025-01-09,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-09,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-09,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-10,Bahan Baku,Bahan baku,-,1,9679748,9679748
-2025-01-10,Operasional,Gas,9 Tabung,9,16000,144000
-2025-01-10,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-11,Operasional,Gas,9 Tabung,9,16000,144000
-2025-01-11,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-11,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-12,Operasional,Gas,12 Tabung,12,16000,192000
-2025-01-12,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-13,Bahan Baku,Bahan baku,-,1,11594779,11594779
-2025-01-13,Operasional,Gas,11 Tabung,11,16000,176000
-2025-01-13,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-13,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-14,Operasional,Gas,13 Tabung,13,16000,208000
-2025-01-14,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-15,Operasional,Gas,6 Tabung,6,16000,96000
-2025-01-15,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-15,Operasional,Arang,-,1,100000,100000
-2025-01-15,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-16,Bahan Baku,Bahan baku,-,1,9637520,9637520
-2025-01-16,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-16,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-17,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-17,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-17,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-18,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-18,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-19,Bahan Baku,Bahan baku,-,1,12016827,12016827
-2025-01-19,Operasional,Gas,7 Tabung,7,16000,112000
-2025-01-19,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-19,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-20,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-20,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-21,Operasional,Gas,13 Tabung,13,16000,208000
-2025-01-21,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-21,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-22,Bahan Baku,Bahan baku,-,1,10631447,10631447
-2025-01-22,Operasional,Gas,9 Tabung,9,16000,144000
-2025-01-22,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-23,Operasional,Gas,12 Tabung,12,16000,192000
-2025-01-23,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-23,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-24,Operasional,Gas,9 Tabung,9,16000,144000
-2025-01-24,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-24,Operasional,Arang,-,1,100000,100000
-2025-01-25,Bahan Baku,Bahan baku,-,1,11072789,11072789
-2025-01-25,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-25,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-25,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-26,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-26,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-27,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-27,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-27,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-28,Bahan Baku,Bahan baku,-,1,16184021,16184021
-2025-01-28,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-28,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-29,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-29,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-29,Operasional,Kemasan dan minyak,-,1,198000,198000
-2025-01-30,Operasional,Gas,10 Tabung,10,16000,160000
-2025-01-30,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-31,Operacional,Gas,10 Tabung,10,16000,160000
-2025-01-31,Operasional,Retribusi pasar,-,1,16000,16000
-2025-01-31,Gaji,Gaji,-,1,13734425,13734425
-2025-01-31,Overhead,Air dan Listrik,-,1,555000,555000
-2025-01-31,Overhead,Biaya Penyusutan aset,-,1,28164775,28164775
-2025-01-31,Overhead,Biaya Sewa,-,1,3999996,3999996
+2025-01-01,Bahan Baku,Bahan baku,-,1,11905028,11905028
+2025-01-04,Bahan Baku,Bahan baku,-,1,10551186,10551186
+2025-01-07,Bahan Baku,Bahan baku,-,1,9219869,9219869
+2025-01-10,Bahan Baku,Bahan baku,-,1,11333376,11333376
+2025-01-13,Bahan Baku,Bahan baku,-,1,9454639,9454639
+2025-01-16,Bahan Baku,Bahan baku,-,1,9878201,9878201
+2025-01-19,Bahan Baku,Bahan baku,-,1,11267006,11267006
+2025-01-22,Bahan Baku,Bahan baku,-,1,9574175,9574175
+2025-01-25,Bahan Baku,Bahan baku,-,1,13608854,13608854
+2025-01-28,Bahan Baku,Bahan baku,-,1,16319204,16319204

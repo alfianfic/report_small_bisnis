@@ -16,6 +16,17 @@ const prisma = new PrismaClient({ adapter });
 
 const CSV_FILES = [
   '1januari2025.csv',
+  '2februari2025.csv',
+  '3maret2025.csv',
+  '4april2025.csv',
+  '5mei2025.csv',
+  '6juni2025.csv',
+  '7juli2025.csv',
+  '8agustus2025.csv',
+  '9september2025.csv',
+  '10oktober2025.csv',
+  '11november2025.csv',
+  '12desember2025.csv',
 ];
 
 async function importPembelian() {

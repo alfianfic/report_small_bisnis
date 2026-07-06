@@ -17,8 +17,7 @@ export async function DELETE(
       }, { status: 400 });
     }
 
-    // Ambil data pembelian sebelum dihapus
-    const pembelian = await prisma.pembelianBahanBaku.findUnique({
+    const pembelian = await prisma.pembelian.findUnique({
       where: { id },
     });
 
@@ -29,18 +28,18 @@ export async function DELETE(
       }, { status: 404 });
     }
 
-    // Rollback stok
-    await prisma.bahanBaku.update({
-      where: { id: pembelian.bahanBakuId },
-      data: {
-        stok: {
-          decrement: pembelian.qty,
+    if (pembelian.bahanBakuId && pembelian.kategori === 'Bahan Baku') {
+      await prisma.bahanBaku.update({
+        where: { id: pembelian.bahanBakuId },
+        data: {
+          stok: {
+            decrement: pembelian.qty,
+          },
         },
-      },
-    });
+      });
+    }
 
-    // Hapus data
-    await prisma.pembelianBahanBaku.delete({
+    await prisma.pembelian.delete({
       where: { id },
     });
 
