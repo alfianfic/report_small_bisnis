@@ -238,7 +238,7 @@ export default function Beranda() {
       {/* Tabel Detail - TAMBAH KOLOM GAJI & OVERHEAD */}
       <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-700">📋 Detail Laporan Bulanan</h3>
+          <h3 className="text-sm font-semibold text-gray-700">📋 Detail Laporan vangga</h3>
         </div>
         <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
           <table className="w-full text-sm">
