@@ -301,7 +301,7 @@ export default function BahanBakuPage() {
                         </td>
                         <td className="px-4 py-2 text-center">
                           <button onClick={() => handleEdit(item)} className="p-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">✏️</button>
-                          <button onClick={() => handleDelete(item.id, item.nama)} className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors ml-1">🗑️</button>
+                          {/* <button onClick={() => handleDelete(item.id, item.nama)} className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors ml-1">🗑️</button> */}
                         </td>
                       </tr>
                     );
