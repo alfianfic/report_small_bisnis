@@ -3,6 +3,46 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
+// Definisikan tipe untuk hasil query
+interface PembelianBahanItem {
+  id: string;
+  tanggal: Date;
+  bahanBakuId: string;
+  qty: number;
+  harga: number;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+  bahan_nama: string;
+  bahan_satuan: string;
+}
+
+interface PembelianRegulerItem {
+  id: string;
+  tanggal: Date;
+  nama: string;
+  detail: string | null;
+  qty: number;
+  harga: number;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface LaporanBulananItem {
+  id: string;
+  bulan: Date;
+  qtyProduksi: number;
+  costPerPortion: number;
+  jumlahCost: number;
+  overhead: number;
+  gaji: number;
+  labaKotor: number;
+  profit: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export async function GET() {
   try {
     const data = await prisma.laporanBulanan.findMany({
@@ -58,7 +98,7 @@ export async function POST(request: Request) {
     console.log(`📊 Updating laporan untuk ${bulan}`);
 
     // Ambil semua pembelian bahan baku di bulan tersebut
-    const pembelianBahan = await prisma.$queryRaw`
+    const pembelianBahan = await prisma.$queryRaw<PembelianBahanItem[]>`
       SELECT 
         pbb.*,
         bb.nama as bahan_nama,
@@ -70,7 +110,7 @@ export async function POST(request: Request) {
     `;
 
     // Ambil semua pembelian reguler di bulan tersebut
-    const pembelianReguler = await prisma.$queryRaw`
+    const pembelianReguler = await prisma.$queryRaw<PembelianRegulerItem[]>`
       SELECT * FROM "Pembelian" 
       WHERE "tanggal" >= ${startDate} 
         AND "tanggal" <= ${endDate}
@@ -91,7 +131,7 @@ export async function POST(request: Request) {
     }
 
     // Cek apakah laporan sudah ada
-    const existingLaporan = await prisma.$queryRaw`
+    const existingLaporan = await prisma.$queryRaw<LaporanBulananItem[]>`
       SELECT * FROM "LaporanBulanan" 
       WHERE DATE_TRUNC('month', "bulan") = DATE_TRUNC('month', ${startDate}::timestamp)
     `;
@@ -135,7 +175,7 @@ export async function POST(request: Request) {
     }
 
     // Ambil data laporan terbaru
-    const laporan = await prisma.$queryRaw`
+    const laporan = await prisma.$queryRaw<LaporanBulananItem[]>`
       SELECT * FROM "LaporanBulanan" 
       WHERE DATE_TRUNC('month', "bulan") = DATE_TRUNC('month', ${startDate}::timestamp)
     `;

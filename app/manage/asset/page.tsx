@@ -311,12 +311,12 @@ export default function AssetPage() {
                       >
                         ✏️
                       </button>
-                      <button
+                      {/* <button
                         onClick={() => handleDelete(item.id, item.name)}
                         className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors ml-1"
                       >
                         🗑️
-                      </button>
+                      </button> */}
                     </td>
                   </tr>
                 ))}

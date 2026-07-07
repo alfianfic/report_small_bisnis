@@ -3,6 +3,53 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
+// Definisikan interface untuk hasil query
+interface PembelianBahanItem {
+  id: string;
+  tanggal: Date;
+  bahanBakuId: string;
+  qty: number;
+  harga: number;
+  total: number;
+  bahan_nama?: string;
+  bahan_satuan?: string;
+}
+
+interface PembelianItem {
+  id: string;
+  tanggal: Date;
+  nama: string;
+  detail: string | null;
+  qty: number;
+  harga: number;
+  total: number;
+}
+
+interface PenjualanItem {
+  id: string;
+  tanggal: Date;
+  produkId: string;
+  qty: number;
+  hargaJual: number;
+  hpp: number;
+  profit: number;
+  produk_nama?: string;
+  produk_hpp?: number;
+  produk_hargaJual?: number;
+}
+
+interface LaporanBulananItem {
+  id: string;
+  bulan: Date;
+  qtyProduksi: number;
+  costPerPortion: number;
+  jumlahCost: number;
+  overhead: number;
+  gaji: number;
+  labaKotor: number;
+  profit: number;
+}
+
 export async function POST(request: Request) {
   try {
     const { bulan } = await request.json();
@@ -24,7 +71,7 @@ export async function POST(request: Request) {
     console.log(`📊 Updating laporan untuk ${bulan} (${startDate} - ${endDate})`);
 
     // 1. Ambil data Penjualan di bulan tersebut
-    const penjualan = await prisma.$queryRaw`
+    const penjualan = await prisma.$queryRaw<PenjualanItem[]>`
       SELECT 
         p.*,
         pr.nama as produk_nama,
@@ -42,7 +89,7 @@ export async function POST(request: Request) {
     let totalProfit = 0;
     let totalCost = 0;
 
-    for (const item of penjualan as any[]) {
+    for (const item of penjualan) {
       const qty = Number(item.qty);
       const hargaJual = Number(item.hargaJual);
       const hpp = Number(item.hpp);
@@ -59,15 +106,15 @@ export async function POST(request: Request) {
     console.log(`   - Profit: ${totalProfit}`);
     console.log(`   - Cost: ${totalCost}`);
 
-    // 3. Ambil data Pembelian di bulan tersebut (untuk cost tambahan)
-    const pembelian = await prisma.$queryRaw`
+    // 3. Ambil data Pembelian di bulan tersebut
+    const pembelian = await prisma.$queryRaw<PembelianItem[]>`
       SELECT * FROM "Pembelian" 
       WHERE "tanggal" >= ${startDate} 
         AND "tanggal" <= ${endDate}
     `;
 
-    const pembelianBahan = await prisma.$queryRaw`
-      SELECT pbb.*, bb.nama as bahan_nama
+    const pembelianBahan = await prisma.$queryRaw<PembelianBahanItem[]>`
+      SELECT pbb.*, bb.nama as bahan_nama, bb.satuan as bahan_satuan
       FROM "PembelianBahanBaku" pbb
       LEFT JOIN "BahanBaku" bb ON pbb."bahanBakuId" = bb.id
       WHERE pbb."tanggal" >= ${startDate} 
@@ -76,10 +123,10 @@ export async function POST(request: Request) {
 
     // 4. Hitung total cost dari pembelian
     let totalPembelianCost = 0;
-    for (const item of pembelian as any[]) {
+    for (const item of pembelian) {
       totalPembelianCost += Number(item.total);
     }
-    for (const item of pembelianBahan as any[]) {
+    for (const item of pembelianBahan) {
       totalPembelianCost += Number(item.total);
     }
 
@@ -89,14 +136,14 @@ export async function POST(request: Request) {
     console.log(`📊 Total Cost: ${totalJumlahCost} (produksi: ${totalCost} + pembelian: ${totalPembelianCost})`);
 
     // 6. Cek apakah laporan sudah ada
-    const existingLaporan = await prisma.$queryRaw`
+    const existingLaporan = await prisma.$queryRaw<LaporanBulananItem[]>`
       SELECT * FROM "LaporanBulanan" 
       WHERE DATE_TRUNC('month', "bulan") = DATE_TRUNC('month', ${startDate}::timestamp)
     `;
 
     const costPerPortion = totalQtyProduksi > 0 ? Math.round(totalJumlahCost / totalQtyProduksi) : 0;
 
-    if (existingLaporan && (existingLaporan as any[]).length > 0) {
+    if (existingLaporan && existingLaporan.length > 0) {
       // Update laporan yang ada
       await prisma.$executeRaw`
         UPDATE "LaporanBulanan" 
@@ -136,7 +183,7 @@ export async function POST(request: Request) {
     }
 
     // Ambil data laporan terbaru
-    const laporan = await prisma.$queryRaw`
+    const laporan = await prisma.$queryRaw<LaporanBulananItem[]>`
       SELECT 
         id,
         TO_CHAR("bulan", 'Month YYYY') as bulan,
@@ -161,9 +208,9 @@ export async function POST(request: Request) {
         totalLabaKotor,
         totalProfit,
         totalJumlahCost,
-        fromPenjualan: (penjualan as any[]).length,
-        fromPembelian: (pembelian as any[]).length,
-        fromPembelianBahan: (pembelianBahan as any[]).length,
+        fromPenjualan: penjualan.length,
+        fromPembelian: pembelian.length,
+        fromPembelianBahan: pembelianBahan.length,
       },
     });
   } catch (error: any) {
