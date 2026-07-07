@@ -3,6 +3,30 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
+// Definisikan tipe untuk hasil query
+interface BahanBakuItem {
+  id: string;
+  nama: string;
+  satuan: string;
+  harga: number;
+  stok: number;
+  stokMinimal: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PembelianBahanItem {
+  id: string;
+  tanggal: Date;
+  bahanBakuId: string;
+  qty: number;
+  harga: number;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+  bahanBaku?: BahanBakuItem;
+}
+
 export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -12,7 +36,7 @@ export async function DELETE(
     console.log(`🗑️ DELETE /api/pembelian/${id}`);
 
     // 1. Cek apakah data ada di PembelianBahanBaku
-    const bahanBaku = await prisma.$queryRaw`
+    const bahanBaku = await prisma.$queryRaw<PembelianBahanItem[]>`
       SELECT pbb.*, bb.* 
       FROM "PembelianBahanBaku" pbb
       LEFT JOIN "BahanBaku" bb ON pbb."bahanBakuId" = bb.id
@@ -24,7 +48,7 @@ export async function DELETE(
       
       // Rollback stok
       if (item.bahanBakuId) {
-        const bahan = await prisma.$queryRaw`
+        const bahan = await prisma.$queryRaw<BahanBakuItem[]>`
           SELECT * FROM "BahanBaku" WHERE id = ${item.bahanBakuId}
         `;
         

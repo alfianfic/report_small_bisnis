@@ -3,66 +3,85 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
+// Definisikan tipe
+interface BahanBakuItem {
+  id: string;
+  nama: string;
+  satuan: string;
+  harga: number;
+  stok: number;
+  stokMinimal: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface PembelianBahanItem {
+  id: string;
+  tanggal: Date;
+  bahanBakuId: string;
+  qty: number;
+  harga: number;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+  bahan_nama: string;
+  bahan_satuan: string;
+}
+
+interface PembelianRegulerItem {
+  id: string;
+  tanggal: Date;
+  nama: string;
+  detail: string | null;
+  qty: number;
+  harga: number;
+  total: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export async function GET() {
   try {
-    console.log('📡 GET /api/pembelian');
+    // 1. Ambil dari PembelianBahanBaku
+    const pembelianBahan = await prisma.$queryRaw<PembelianBahanItem[]>`
+      SELECT 
+        pbb.*,
+        bb.nama as bahan_nama,
+        bb.satuan as bahan_satuan
+      FROM "PembelianBahanBaku" pbb
+      LEFT JOIN "BahanBaku" bb ON pbb."bahanBakuId" = bb.id
+      ORDER BY pbb."tanggal" DESC
+    `;
 
-    // Coba ambil dari PembelianBahanBaku
-    let pembelianBahan = [];
-    try {
-      pembelianBahan = await prisma.pembelianBahanBaku.findMany({
-        include: {
-          bahanBaku: true,
-        },
-        orderBy: { tanggal: 'desc' },
-      });
-      console.log(`✅ PembelianBahanBaku: ${pembelianBahan.length} data`);
-    } catch (err) {
-      console.error('❌ Error PembelianBahanBaku:', err);
-    }
+    // 2. Ambil dari Pembelian
+    const pembelianReguler = await prisma.$queryRaw<PembelianRegulerItem[]>`
+      SELECT * FROM "Pembelian" 
+      ORDER BY "tanggal" DESC
+    `;
 
-    // Coba ambil dari Pembelian
-    let pembelian = [];
-    try {
-      pembelian = await prisma.pembelian.findMany({
-        orderBy: { tanggal: 'desc' },
-      });
-      console.log(`✅ Pembelian: ${pembelian.length} data`);
-    } catch (err) {
-      console.error('❌ Error Pembelian:', err);
-      // Jika error, coba pakai raw query
-      console.log('🔧 Coba pakai raw query...');
-      pembelian = await prisma.$queryRaw`
-        SELECT * FROM "Pembelian" ORDER BY "tanggal" DESC
-      `;
-      console.log(`✅ Pembelian (raw): ${pembelian.length} data`);
-    }
-
-    // Format data
+    // 3. Format data
     const allData = [];
 
-    // Data dari PembelianBahanBaku
     for (const item of pembelianBahan) {
       allData.push({
         id: item.id,
         tanggal: item.tanggal,
-        nama: item.bahanBaku?.nama || 'Unknown',
-        detail: `Pembelian ${item.bahanBaku?.nama || 'Unknown'}`,
+        nama: item.bahan_nama || 'Unknown',
+        detail: `Pembelian ${item.bahan_nama || 'Unknown'}`,
         qty: item.qty,
         harga: item.harga,
         total: item.total,
         source: 'bahan_baku',
-        satuan: item.bahanBaku?.satuan || '-',
+        satuan: item.bahan_satuan || '-',
       });
     }
 
-    // Data dari Pembelian
-    for (const item of pembelian) {
+    for (const item of pembelianReguler) {
       allData.push({
         id: item.id,
         tanggal: item.tanggal,
         nama: item.nama,
-        detail: item.detail || null,
+        detail: item.detail,
         qty: item.qty,
         harga: item.harga,
         total: item.total,
@@ -74,28 +93,23 @@ export async function GET() {
     // Sort by tanggal
     allData.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
 
-    console.log(`✅ Total data: ${allData.length}`);
-
     return NextResponse.json({
       status: '✅ Berhasil!',
       data: allData,
       metadata: {
         total: allData.length,
         fromBahanBaku: pembelianBahan.length,
-        fromReguler: pembelian.length,
+        fromReguler: pembelianReguler.length,
       },
     });
   } catch (error: any) {
-    console.error('❌ Error:', error);
+    console.error('❌ Error fetching pembelian:', error);
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message,
-      stack: error.stack,
     }, { status: 500 });
   }
 }
-
-// app/api/pembelian/route.ts (lanjutan)
 
 export async function POST(request: Request) {
   try {
@@ -130,11 +144,11 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Jika pembelian bahan baku (dari dropdown)
+    // Jika pembelian bahan baku
     if (isBahanBaku && bahanBakuId) {
       try {
         // 1. Insert ke PembelianBahanBaku
-        const result = await prisma.$executeRaw`
+        await prisma.$executeRaw`
           INSERT INTO "PembelianBahanBaku" (
             id, "tanggal", "bahanBakuId", qty, harga, total, "createdAt", "updatedAt"
           ) VALUES (
@@ -152,7 +166,7 @@ export async function POST(request: Request) {
         console.log('✅ PembelianBahanBaku created');
 
         // 2. Update stok bahan baku
-        const bahanBaku = await prisma.$queryRaw`
+        const bahanBaku = await prisma.$queryRaw<BahanBakuItem[]>`
           SELECT * FROM "BahanBaku" WHERE id = ${bahanBakuId}
         `;
 
@@ -186,10 +200,9 @@ export async function POST(request: Request) {
         }, { status: 500 });
       }
     } 
-    // Pembelian reguler (input manual)
+    // Pembelian reguler
     else {
       try {
-        // Insert ke Pembelian
         await prisma.$executeRaw`
           INSERT INTO "Pembelian" (
             id, tanggal, nama, detail, qty, harga, total, "createdAt", "updatedAt"
