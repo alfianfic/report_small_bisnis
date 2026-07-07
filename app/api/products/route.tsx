@@ -42,3 +42,66 @@ export async function GET() {
     }, { status: 500 });
   }
 }
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { nama, sku, hpp, hargaJual, targetStok, resep } = body;
+
+    // Validasi
+    if (!nama || !sku || !hpp || !hargaJual) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'Semua field wajib diisi',
+      }, { status: 400 });
+    }
+
+    // Cek SKU duplikat
+    const existing = await prisma.produk.findUnique({
+      where: { sku },
+    });
+
+    if (existing) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: `SKU "${sku}" sudah digunakan`,
+      }, { status: 400 });
+    }
+
+    // Create produk dengan resep
+    const produk = await prisma.produk.create({
+      data: {
+        nama,
+        sku,
+        hpp: Number(hpp),
+        hargaJual: Number(hargaJual),
+        targetStok: Number(targetStok) || 0,
+        isActive: true,
+        bahanBaku: {
+          create: resep?.map((item: any) => ({
+            bahanBakuId: item.bahanBakuId,
+            qty: Number(item.qty),
+          })) || [],
+        },
+      },
+      include: {
+        bahanBaku: {
+          include: {
+            bahanBaku: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      status: '✅ Berhasil!',
+      data: produk,
+    });
+  } catch (error: any) {
+    console.error('Error creating product:', error);
+    return NextResponse.json({
+      status: '❌ GAGAL',
+      error: error.message,
+    }, { status: 500 });
+  }
+}

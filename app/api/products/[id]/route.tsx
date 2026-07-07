@@ -5,11 +5,13 @@ import { NextResponse } from 'next/server';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
+    
     const produk = await prisma.produk.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         bahanBaku: {
           include: {
@@ -41,9 +43,10 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params;
     const body = await request.json();
     const { nama, sku, hpp, hargaJual, targetStok, resep } = body;
 
@@ -59,7 +62,7 @@ export async function PUT(
     const existing = await prisma.produk.findFirst({
       where: {
         sku,
-        NOT: { id: params.id },
+        NOT: { id },
       },
     });
 
@@ -73,8 +76,8 @@ export async function PUT(
     // Update produk dan resep
     const produk = await prisma.$transaction(async (tx) => {
       // Update produk
-      const updated = await tx.produk.update({
-        where: { id: params.id },
+      await tx.produk.update({
+        where: { id },
         data: {
           nama,
           sku,
@@ -86,14 +89,14 @@ export async function PUT(
 
       // Hapus resep lama
       await tx.produkBahanBaku.deleteMany({
-        where: { produkId: params.id },
+        where: { produkId: id },
       });
 
       // Create resep baru
       if (resep && resep.length > 0) {
         await tx.produkBahanBaku.createMany({
           data: resep.map((item: any) => ({
-            produkId: params.id,
+            produkId: id,
             bahanBakuId: item.bahanBakuId,
             qty: Number(item.qty),
           })),
@@ -102,7 +105,7 @@ export async function PUT(
 
       // Return produk dengan resep
       return await tx.produk.findUnique({
-        where: { id: params.id },
+        where: { id },
         include: {
           bahanBaku: {
             include: {
@@ -128,12 +131,13 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Hapus resep dulu (cascade otomatis)
+    const { id } = await context.params;
+    
     await prisma.produk.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({
