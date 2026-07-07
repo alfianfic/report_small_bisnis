@@ -53,14 +53,18 @@ export default function Beranda() {
         setData(result.data);
         
         // Extract available years from data
-        const years = [...new Set(result.data.map((item: LaporanBulanan) => {
+        const years = result.data.map((item: LaporanBulanan) => {
           return item.bulanKey.split('-')[0];
-        }))].sort();
+        });
         
-        if (years.length > 0) {
-          setAvailableYears(years);
-          if (!years.includes(selectedYear)) {
-            setSelectedYear(years[0]);
+        // Get unique years and sort
+        const uniqueYears = [...new Set(years)] as string[];
+        uniqueYears.sort();
+        
+        if (uniqueYears.length > 0) {
+          setAvailableYears(uniqueYears);
+          if (!uniqueYears.includes(selectedYear)) {
+            setSelectedYear(uniqueYears[0]);
           }
         }
       } else {
