@@ -4,7 +4,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Swal from 'sweetalert2';
-import FilterBar from '@/app/components/ui/FilterBar';
 
 interface Produk {
   id: string;
