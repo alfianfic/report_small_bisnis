@@ -27,6 +27,23 @@ interface LaporanBulanan {
   profit: number;
 }
 
+interface PenjualanItem {
+  id: string;
+  tanggal: string;
+  produkId: string;
+  qty: number;
+  hargaJual: number;
+  hpp: number;
+  profit: number;
+  produk: {
+    id: string;
+    nama: string;
+    sku: string;
+    hpp: number;
+    hargaJual: number;
+  };
+}
+
 const formatRupiah = (angka: number) => {
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -36,13 +53,22 @@ const formatRupiah = (angka: number) => {
 };
 
 export default function Beranda() {
+  // ========== SEMUA HOOKS DIATAS ==========
   const [data, setData] = useState<LaporanBulanan[]>([]);
   const [filteredData, setFilteredData] = useState<LaporanBulanan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState('2026');
   const [availableYears, setAvailableYears] = useState<string[]>(['2026']);
+  
+  // HOOKS UNTUK PENJUALAN
+  const [dataPenjualan, setDataPenjualan] = useState<PenjualanItem[]>([]);
+  const [chartMode, setChartMode] = useState<'stacked' | 'grouped'>('stacked');
+  
+  // Warna untuk setiap produk
+  const PRODUK_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
 
+  // ========== FUNGSI-FUNGSI ==========
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -52,12 +78,10 @@ export default function Beranda() {
       if (result.status === '✅ Berhasil!') {
         setData(result.data);
         
-        // Extract available years from data
         const years = result.data.map((item: LaporanBulanan) => {
           return item.bulanKey.split('-')[0];
         });
         
-        // Get unique years and sort
         const uniqueYears = [...new Set(years)] as string[];
         uniqueYears.sort();
         
@@ -77,11 +101,62 @@ export default function Beranda() {
     }
   };
 
+  const fetchPenjualan = async () => {
+    try {
+      const res = await fetch('/api/penjualan');
+      const result = await res.json();
+      if (result.status === '✅ Berhasil!') {
+        setDataPenjualan(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching penjualan:', error);
+    }
+  };
+
+  // Proses data untuk grafik penjualan per menu
+  const getPenjualanPerMenu = () => {
+    const grouped: any = {};
+    
+    const filteredPenjualan = dataPenjualan.filter((item: PenjualanItem) => {
+      const year = new Date(item.tanggal).getFullYear().toString();
+      return year === selectedYear;
+    });
+    
+    filteredPenjualan.forEach((item: PenjualanItem) => {
+      const bulan = new Date(item.tanggal).toLocaleString('id-ID', { month: 'short' });
+      const key = bulan;
+      const produkNama = item.produk.nama;
+      
+      if (!grouped[key]) grouped[key] = { bulan: key };
+      if (!grouped[key][produkNama]) grouped[key][produkNama] = 0;
+      grouped[key][produkNama] += item.qty;
+    });
+    
+    const bulanOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return Object.values(grouped).sort((a: any, b: any) => {
+      return bulanOrder.indexOf(a.bulan) - bulanOrder.indexOf(b.bulan);
+    });
+  };
+
+  const getProdukList = (): string[] => {
+    const produkSet = new Set<string>();
+    const filteredPenjualan = dataPenjualan.filter((item: PenjualanItem) => {
+      const year = new Date(item.tanggal).getFullYear().toString();
+      return year === selectedYear;
+    });
+    
+    filteredPenjualan.forEach((item: PenjualanItem) => {
+      produkSet.add(item.produk.nama);
+    });
+    return Array.from(produkSet);
+  };
+
+  // ========== useEffect ==========
   useEffect(() => {
     fetchData();
+    fetchPenjualan();
   }, []);
 
-  // Filter data when year changes
   useEffect(() => {
     const filtered = data.filter(item => {
       const year = item.bulanKey.split('-')[0];
@@ -90,17 +165,7 @@ export default function Beranda() {
     setFilteredData(filtered);
   }, [data, selectedYear]);
 
-  // Data untuk grafik
-  const chartData = filteredData.map((item) => ({
-    bulan: item.bulan,
-    qty: item.qtyProduksi,
-    labaKotor: item.labaKotor,
-    profit: item.profit,
-    cost: item.jumlahCost,
-    overhead: item.overhead,
-    gaji: item.gaji,
-  }));
-
+  // ========== CONDITIONAL RENDERING (SETELAH HOOKS) ==========
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -139,15 +204,24 @@ export default function Beranda() {
     );
   }
 
-  // Total keseluruhan (dari filtered data)
+  // ========== RENDER MAIN ==========
   const totalQty = filteredData.reduce((sum, d) => sum + (d.qtyProduksi || 0), 0);
   const totalProfit = filteredData.reduce((sum, d) => sum + (d.profit || 0), 0);
   const totalLabaKotor = filteredData.reduce((sum, d) => sum + (d.labaKotor || 0), 0);
   const totalCost = filteredData.reduce((sum, d) => sum + (d.jumlahCost || 0), 0);
   const totalOverhead = filteredData.reduce((sum, d) => sum + (d.overhead || 0), 0);
   const totalGaji = filteredData.reduce((sum, d) => sum + (d.gaji || 0), 0);
-
   const totalBulan = filteredData.length;
+
+  // Data untuk grafik Laba Kotor vs Profit vs Cost
+  const chartData = filteredData.map((d) => ({
+    bulan: d.bulan.trim(), 
+    labaKotor: d.labaKotor || 0,
+    cost: d.jumlahCost || 0,
+    overhead: d.overhead || 0,
+    gaji: d.gaji || 0,
+    profit: d.profit || 0,
+  }));
 
   return (
     <div className="w-full max-w-7xl mx-auto">
@@ -202,7 +276,105 @@ export default function Beranda() {
         </div>
       </div>
 
-      {/* Grafik */}
+      {/* ===== GRAFIK PENJUALAN PER MENU ===== */}
+      {dataPenjualan.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-semibold text-gray-700">
+              📈 Penjualan per Menu ({selectedYear})
+            </h3>
+            <div className="flex items-center gap-3">
+              {/* Toggle Stacked/Grouped */}
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setChartMode('stacked')}
+                  className={`px-2 py-1 text-xs rounded ${
+                    chartMode === 'stacked' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Stacked
+                </button>
+                <button
+                  onClick={() => setChartMode('grouped')}
+                  className={`px-2 py-1 text-xs rounded ${
+                    chartMode === 'grouped' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  Grouped
+                </button>
+              </div>
+              <span className="text-xs text-gray-400">
+                {getPenjualanPerMenu().length} bulan
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+            {getProdukList().map((produk: string, index: number) => {
+              const totalQtyProduk = dataPenjualan
+                .filter((item: PenjualanItem) => {
+                  const year = new Date(item.tanggal).getFullYear().toString();
+                  return item.produk.nama === produk && year === selectedYear;
+                })
+                .reduce((sum: number, item: PenjualanItem) => sum + item.qty, 0);
+              
+              return (
+                <div key={index} className="flex items-center gap-1.5">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: PRODUK_COLORS[index % PRODUK_COLORS.length] }}
+                  />
+                  <span className="text-gray-600">{produk}</span>
+                  <span className="text-gray-400">({totalQtyProduk} porsi)</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {getPenjualanPerMenu().length === 0 ? (
+            <div className="flex items-center justify-center h-[250px] text-gray-400">
+              <p>📭 Belum ada data penjualan untuk tahun {selectedYear}</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={getPenjualanPerMenu()}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="bulan" tick={{ fontSize: 11, fill: '#888' }} />
+                <YAxis 
+                  tick={{ fontSize: 11, fill: '#888' }} 
+                  tickFormatter={(v) => v.toLocaleString()}
+                />
+                <Tooltip 
+                  formatter={(value: any) => `${value} porsi`}
+                  labelFormatter={(label: any) => `Bulan: ${label}`}
+                  contentStyle={{ 
+                    borderRadius: '8px', 
+                    border: 'none', 
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                  }}
+                />
+                <Legend />
+                {getProdukList().map((produk: string, index: number) => (
+                  <Bar
+                    key={index}
+                    dataKey={produk}
+                    fill={PRODUK_COLORS[index % PRODUK_COLORS.length]}
+                    name={produk}
+                    radius={[4, 4, 0, 0]}
+                    stackId={chartMode === 'stacked' ? 'stack' : undefined}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      )}
+
+      {/* ===== GRAFIK LABA KOTOR VS PROFIT VS COST ===== */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">
           📊 Laba Kotor vs Profit vs Cost vs Overhead vs Gaji ({selectedYear})
@@ -229,7 +401,7 @@ export default function Beranda() {
         )}
       </div>
 
-      {/* Tabel Detail */}
+      {/* ===== TABEL DETAIL ===== */}
       <div className="mt-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
           <h3 className="text-sm font-semibold text-gray-700">📋 Detail Laporan Bulanan</h3>
@@ -241,7 +413,6 @@ export default function Beranda() {
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase">Bulan</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Qty Produksi</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Cost/Porsi</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Total Cost</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Overhead</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Gaji</th>
@@ -261,7 +432,6 @@ export default function Beranda() {
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="px-3 py-2 font-medium text-gray-800">{item.bulan.trim()}</td>
                     <td className="px-3 py-2 text-right text-gray-700">{item.qtyProduksi.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-right text-gray-600">{formatRupiah(item.costPerPortion)}</td>
                     <td className="px-3 py-2 text-right text-gray-700">{formatRupiah(item.jumlahCost)}</td>
                     <td className="px-3 py-2 text-right text-orange-600">{formatRupiah(item.overhead)}</td>
                     <td className="px-3 py-2 text-right text-pink-600">{formatRupiah(item.gaji)}</td>
@@ -275,7 +445,7 @@ export default function Beranda() {
         </div>
         <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
           <span>Total {totalBulan} bulan</span>
-          <span>Total Cost: {formatRupiah(totalCost)}</span>
+          <span>Total Quantity: {formatRupiah(totalQty)}</span>
         </div>
       </div>
     </div>

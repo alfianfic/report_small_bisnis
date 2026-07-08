@@ -51,7 +51,7 @@ export default function PembelianPage() {
     nama: '',
     detail: '',
     qty: '',
-    harga: '',
+    hargaTotal: '',  // Changed from 'harga' to 'hargaTotal'
     isBahanBaku: false,
     bahanBakuId: '',
   });
@@ -73,15 +73,15 @@ export default function PembelianPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const res = await fetch('/api/pembelian');
-      
+
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
-      
+
       const result = await res.json();
-      
+
       if (result.status === '✅ Berhasil!') {
         setData(result.data);
         applyFilters(result.data, filterMonth);
@@ -122,7 +122,7 @@ export default function PembelianPage() {
   // Handle form
   const handleBahanChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
-    
+
     if (id) {
       const selected = bahanList.find(b => b.id === id);
       if (selected) {
@@ -130,7 +130,7 @@ export default function PembelianPage() {
           ...formData,
           bahanBakuId: id,
           nama: selected.nama,
-          harga: String(selected.harga),
+          hargaTotal: '', // Reset hargaTotal, user will input total
           isBahanBaku: true,
         });
       }
@@ -139,7 +139,7 @@ export default function PembelianPage() {
         ...formData,
         bahanBakuId: '',
         nama: '',
-        harga: '',
+        hargaTotal: '',
         isBahanBaku: false,
       });
     }
@@ -157,8 +157,8 @@ export default function PembelianPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.tanggal || !formData.nama || !formData.qty || !formData.harga) {
+
+    if (!formData.tanggal || !formData.nama || !formData.qty || !formData.hargaTotal) {
       Swal.fire({
         icon: 'warning',
         title: 'Data tidak lengkap!',
@@ -169,23 +169,23 @@ export default function PembelianPage() {
     }
 
     const qtyNum = Number(formData.qty);
-    const hargaNum = Number(formData.harga);
+    const hargaTotalNum = Number(formData.hargaTotal);
 
     if (isNaN(qtyNum) || qtyNum <= 0) {
-      Swal.fire({ 
-        icon: 'warning', 
-        title: 'Qty tidak valid!', 
+      Swal.fire({
+        icon: 'warning',
+        title: 'Qty tidak valid!',
         text: 'Qty harus lebih dari 0',
         confirmButtonText: 'OK',
       });
       return;
     }
 
-    if (isNaN(hargaNum) || hargaNum <= 0) {
-      Swal.fire({ 
-        icon: 'warning', 
-        title: 'Harga tidak valid!', 
-        text: 'Harga harus lebih dari 0',
+    if (isNaN(hargaTotalNum) || hargaTotalNum <= 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Harga Total tidak valid!',
+        text: 'Harga Total harus lebih dari 0',
         confirmButtonText: 'OK',
       });
       return;
@@ -199,8 +199,8 @@ export default function PembelianPage() {
         nama: formData.nama,
         detail: formData.detail || null,
         qty: qtyNum,
-        harga: hargaNum,
-        total: qtyNum * hargaNum,
+        hargaTotal: hargaTotalNum,  // Kirim hargaTotal
+        total: hargaTotalNum,       // Total = hargaTotal
         isBahanBaku: formData.isBahanBaku,
       };
 
@@ -213,9 +213,9 @@ export default function PembelianPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
+
       const result = await res.json();
-      
+
       if (result.status === '✅ Berhasil!') {
         setShowForm(false);
         setFormData({
@@ -223,16 +223,16 @@ export default function PembelianPage() {
           nama: '',
           detail: '',
           qty: '',
-          harga: '',
+          hargaTotal: '',
           isBahanBaku: false,
           bahanBakuId: '',
         });
         await fetchData();
         await fetchBahan();
-        
+
         // Update Laporan Bulanan
         await updateLaporanBulanan(formData.tanggal);
-        
+
         Swal.fire({
           icon: 'success',
           title: '✅ Berhasil!',
@@ -241,18 +241,18 @@ export default function PembelianPage() {
           showConfirmButton: false,
         });
       } else {
-        Swal.fire({ 
-          icon: 'error', 
-          title: 'Gagal!', 
+        Swal.fire({
+          icon: 'error',
+          title: 'Gagal!',
           text: result.error || 'Gagal menyimpan data',
           confirmButtonText: 'OK',
         });
       }
     } catch (error: any) {
       console.error('❌ Submit error:', error);
-      Swal.fire({ 
-        icon: 'error', 
-        title: 'Error!', 
+      Swal.fire({
+        icon: 'error',
+        title: 'Error!',
         text: error.message || 'Terjadi kesalahan',
         confirmButtonText: 'OK',
       });
@@ -266,13 +266,13 @@ export default function PembelianPage() {
     try {
       const bulan = new Date(tanggal);
       const bulanStr = `${bulan.getFullYear()}-${String(bulan.getMonth() + 1).padStart(2, '0')}`;
-      
+
       const res = await fetch('/api/laporan-bulanan/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bulan: bulanStr }),
       });
-      
+
       const result = await res.json();
       console.log('📊 Laporan Bulanan updated:', result);
     } catch (error) {
@@ -297,10 +297,10 @@ export default function PembelianPage() {
         if (res.ok) {
           await fetchData();
           await fetchBahan();
-          
+
           // Update Laporan Bulanan
           await updateLaporanBulanan(tanggal);
-          
+
           Swal.fire({ icon: 'success', title: '✅ Berhasil!', timer: 1500, showConfirmButton: false });
         } else {
           throw new Error('Gagal menghapus');
@@ -333,8 +333,8 @@ export default function PembelianPage() {
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-sm border border-red-200 p-8 max-w-md text-center">
           <p className="text-red-500 text-lg">❌ {error}</p>
-          <button 
-            onClick={fetchData} 
+          <button
+            onClick={fetchData}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           >
             Coba Lagi
@@ -458,21 +458,29 @@ export default function PembelianPage() {
                 {/* Harga */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Harga <span className="text-red-500">*</span>
+                    Harga Total <span className="text-red-500">*</span>
                     {formData.isBahanBaku && formData.bahanBakuId && (
-                      <span className="text-xs text-gray-400 ml-1">(auto-fill)</span>
+                      <span className="text-xs text-gray-400 ml-1">(input total belanja)</span>
                     )}
                   </label>
-                  <input
-                    type="number"
-                    placeholder="Harga per satuan"
-                    value={formData.harga}
-                    onChange={(e) => setFormData({ ...formData, harga: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-                    required
-                    min="1"
-                    step="1"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">Rp</span>
+                    <input
+                      type="number"
+                      placeholder="Total harga (misal: 50000)"
+                      value={formData.hargaTotal}
+                      onChange={(e) => setFormData({ ...formData, hargaTotal: e.target.value })}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
+                      required
+                      min="1"
+                      step="1"
+                    />
+                  </div>
+                  {formData.isBahanBaku && formData.bahanBakuId && formData.qty && formData.hargaTotal && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Harga per satuan: {formatRupiah(Math.round(Number(formData.hargaTotal) / Number(formData.qty)))}
+                    </p>
+                  )}
                 </div>
 
                 {/* Detail */}
@@ -487,19 +495,19 @@ export default function PembelianPage() {
                   />
                 </div>
               </div>
-              
+
               {/* Preview */}
-              {formData.qty && formData.harga && (
+              {formData.qty && formData.hargaTotal && (
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex flex-wrap justify-between items-center gap-2">
                     <span className="text-sm text-gray-600 font-medium">📊 Preview:</span>
                     <div className="flex flex-wrap items-center gap-4 text-sm">
                       <span>
-                        {Number(formData.qty)} × {formatRupiah(Number(formData.harga))}
+                        {Number(formData.qty)} × {formatRupiah(Math.round(Number(formData.hargaTotal) / Number(formData.qty)))}
+                        <span className="text-gray-400 ml-1">=</span>
                       </span>
-                      <span className="text-gray-400">=</span>
                       <span className="font-bold text-blue-600 text-base">
-                        {formatRupiah(Number(formData.qty) * Number(formData.harga))}
+                        {formatRupiah(Number(formData.hargaTotal))}
                       </span>
                     </div>
                   </div>
@@ -637,11 +645,10 @@ export default function PembelianPage() {
                         {formatRupiah(item.total)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          item.source === 'bahan_baku' 
-                            ? 'bg-green-100 text-green-700' 
+                        <span className={`text-xs px-2 py-1 rounded-full ${item.source === 'bahan_baku'
+                            ? 'bg-green-100 text-green-700'
                             : 'bg-blue-100 text-blue-700'
-                        }`}>
+                          }`}>
                           {item.source === 'bahan_baku' ? '📦 Bahan' : '📝 Reguler'}
                         </span>
                       </td>

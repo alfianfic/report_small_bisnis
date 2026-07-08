@@ -114,21 +114,23 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { tanggal, nama, detail, qty, harga, total, bahanBakuId, isBahanBaku } = body;
+    const { tanggal, nama, detail, qty, hargaTotal, total, bahanBakuId, isBahanBaku } = body;
 
-    console.log('📝 POST /api/pembelian - Payload:', { tanggal, nama, qty, harga, total, bahanBakuId, isBahanBaku });
+    console.log('📝 POST /api/pembelian - Payload:', { 
+      tanggal, nama, qty, hargaTotal, total, bahanBakuId, isBahanBaku 
+    });
 
     // Validasi
-    if (!tanggal || !nama || !qty || !harga) {
+    if (!tanggal || !nama || !qty || !hargaTotal) {
       return NextResponse.json({
         status: '❌ GAGAL',
-        error: 'Tanggal, nama, qty, dan harga wajib diisi',
+        error: 'Tanggal, nama, qty, dan hargaTotal wajib diisi',
       }, { status: 400 });
     }
 
     const qtyNum = Number(qty);
-    const hargaNum = Number(harga);
-    const totalNum = Number(total);
+    const hargaTotalNum = Number(hargaTotal); // Ini harga total, bukan per satuan
+    const totalNum = Number(total) || hargaTotalNum; // Total = hargaTotal
 
     if (isNaN(qtyNum) || qtyNum <= 0) {
       return NextResponse.json({
@@ -137,16 +139,31 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    if (isNaN(hargaNum) || hargaNum <= 0) {
+    if (isNaN(hargaTotalNum) || hargaTotalNum <= 0) {
       return NextResponse.json({
         status: '❌ GAGAL',
-        error: 'Harga harus lebih dari 0',
+        error: 'Harga Total harus lebih dari 0',
       }, { status: 400 });
     }
 
     // Jika pembelian bahan baku
     if (isBahanBaku && bahanBakuId) {
       try {
+        // Cek bahan baku
+        const bahanBaku = await prisma.$queryRaw<BahanBakuItem[]>`
+          SELECT * FROM "BahanBaku" WHERE id = ${bahanBakuId}
+        `;
+
+        if (!bahanBaku || bahanBaku.length === 0) {
+          return NextResponse.json({
+            status: '❌ GAGAL',
+            error: 'Bahan baku tidak ditemukan',
+          }, { status: 404 });
+        }
+
+        const item = bahanBaku[0];
+        const hargaPerSatuan = Math.round(hargaTotalNum / qtyNum); // Hitung harga per satuan
+
         // 1. Insert ke PembelianBahanBaku
         await prisma.$executeRaw`
           INSERT INTO "PembelianBahanBaku" (
@@ -156,8 +173,8 @@ export async function POST(request: Request) {
             ${new Date(tanggal)}::timestamp,
             ${bahanBakuId},
             ${qtyNum},
-            ${hargaNum},
-            ${totalNum},
+            ${hargaPerSatuan},  -- Simpan harga per satuan
+            ${hargaTotalNum},   -- Simpan total
             NOW(),
             NOW()
           )
@@ -165,31 +182,30 @@ export async function POST(request: Request) {
 
         console.log('✅ PembelianBahanBaku created');
 
-        // 2. Update stok bahan baku
-        const bahanBaku = await prisma.$queryRaw<BahanBakuItem[]>`
-          SELECT * FROM "BahanBaku" WHERE id = ${bahanBakuId}
+        // 2. Update stok bahan baku dengan harga rata-rata
+        const totalStokLama = Number(item.stok);
+        const totalHargaLama = totalStokLama * Number(item.harga);
+        const totalStokBaru = totalStokLama + qtyNum;
+        const totalHargaBaru = totalHargaLama + hargaTotalNum;
+        const hargaRataRataBaru = totalStokBaru > 0 ? Math.round(totalHargaBaru / totalStokBaru) : 0;
+
+        await prisma.$executeRaw`
+          UPDATE "BahanBaku" 
+          SET stok = ${totalStokBaru}, harga = ${hargaRataRataBaru}
+          WHERE id = ${bahanBakuId}
         `;
 
-        if (bahanBaku && bahanBaku.length > 0) {
-          const item = bahanBaku[0];
-          const totalStokLama = Number(item.stok);
-          const totalHargaLama = totalStokLama * Number(item.harga);
-          const totalStokBaru = totalStokLama + qtyNum;
-          const totalHargaBaru = totalHargaLama + totalNum;
-          const hargaRataRataBaru = totalStokBaru > 0 ? Math.round(totalHargaBaru / totalStokBaru) : 0;
-
-          await prisma.$executeRaw`
-            UPDATE "BahanBaku" 
-            SET stok = ${totalStokBaru}, harga = ${hargaRataRataBaru}
-            WHERE id = ${bahanBakuId}
-          `;
-
-          console.log('✅ Stok updated');
-        }
+        console.log('✅ Stok updated');
 
         return NextResponse.json({
           status: '✅ Berhasil!',
           message: 'Pembelian bahan baku berhasil, stok diupdate',
+          data: {
+            hargaPerSatuan,
+            total: hargaTotalNum,
+            stokBaru: totalStokBaru,
+            hargaRataRataBaru,
+          },
         });
       } catch (error: any) {
         console.error('❌ Error processing bahan baku:', error);
@@ -212,8 +228,8 @@ export async function POST(request: Request) {
             ${nama},
             ${detail || null},
             ${qtyNum},
-            ${hargaNum},
-            ${totalNum},
+            ${Math.round(hargaTotalNum / qtyNum)},  -- Harga per satuan
+            ${hargaTotalNum},                      -- Total
             NOW(),
             NOW()
           )
