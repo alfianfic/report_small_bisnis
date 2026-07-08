@@ -3,47 +3,79 @@
 import { prisma } from '@/app/lib/prisma';
 import { NextResponse } from 'next/server';
 
-// Definisikan tipe
-interface BahanBakuItem {
-  id: string;
-  nama: string;
-  satuan: string;
-  harga: number;
-  stok: number;
-  stokMinimal: number;
-  createdAt: Date;
-  updatedAt: Date;
+// ============================================
+// HELPER: Update Stok Produk dari Bahan Baku
+// ============================================
+async function updateStokProdukDariBahanBaku() {
+  try {
+    // 1. Ambil semua produk dengan resepnya
+    const produkList = await prisma.produk.findMany({
+      include: {
+        bahanBaku: {
+          include: {
+            bahanBaku: true,
+          },
+        },
+      },
+    });
+
+    const updates = [];
+
+    for (const produk of produkList) {
+      if (produk.bahanBaku.length === 0) {
+        // Produk tanpa resep -> stok tetap 0
+        updates.push(
+          prisma.produk.update({
+            where: { id: produk.id },
+            data: { stok: 0 },
+          })
+        );
+        continue;
+      }
+
+      // 2. Hitung maksimum produk yang bisa dibuat dari stok bahan baku saat ini
+      let maxProduk = Infinity;
+
+      for (const item of produk.bahanBaku) {
+        const stokBahan = Number(item.bahanBaku.stok);
+        const qtyPerProduk = Number(item.qty);
+        
+        if (qtyPerProduk > 0) {
+          const bisaDibuat = Math.floor(stokBahan / qtyPerProduk);
+          maxProduk = Math.min(maxProduk, bisaDibuat);
+        }
+      }
+
+      // 3. Update stok produk
+      const stokBaru = maxProduk === Infinity ? 0 : maxProduk;
+      
+      updates.push(
+        prisma.produk.update({
+          where: { id: produk.id },
+          data: { stok: stokBaru },
+        })
+      );
+
+      console.log(`📦 Produk ${produk.nama}: stok = ${stokBaru} (dari bahan baku)`);
+    }
+
+    await Promise.all(updates);
+    console.log(`✅ Stok ${updates.length} produk diupdate dari bahan baku`);
+
+    return { success: true, updated: updates.length };
+  } catch (error) {
+    console.error('❌ Error updating stok produk:', error);
+    throw error;
+  }
 }
 
-interface PembelianBahanItem {
-  id: string;
-  tanggal: Date;
-  bahanBakuId: string;
-  qty: number;
-  harga: number;
-  total: number;
-  createdAt: Date;
-  updatedAt: Date;
-  bahan_nama: string;
-  bahan_satuan: string;
-}
-
-interface PembelianRegulerItem {
-  id: string;
-  tanggal: Date;
-  nama: string;
-  detail: string | null;
-  qty: number;
-  harga: number;
-  total: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
+// ============================================
+// GET: Ambil semua data pembelian
+// ============================================
 export async function GET() {
   try {
     // 1. Ambil dari PembelianBahanBaku
-    const pembelianBahan = await prisma.$queryRaw<PembelianBahanItem[]>`
+    const pembelianBahan = await prisma.$queryRaw<any[]>`
       SELECT 
         pbb.*,
         bb.nama as bahan_nama,
@@ -54,7 +86,7 @@ export async function GET() {
     `;
 
     // 2. Ambil dari Pembelian
-    const pembelianReguler = await prisma.$queryRaw<PembelianRegulerItem[]>`
+    const pembelianReguler = await prisma.$queryRaw<any[]>`
       SELECT * FROM "Pembelian" 
       ORDER BY "tanggal" DESC
     `;
@@ -111,6 +143,9 @@ export async function GET() {
   }
 }
 
+// ============================================
+// POST: Tambah pembelian baru
+// ============================================
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -129,8 +164,7 @@ export async function POST(request: Request) {
     }
 
     const qtyNum = Number(qty);
-    const hargaTotalNum = Number(hargaTotal); // Ini harga total, bukan per satuan
-    const totalNum = Number(total) || hargaTotalNum; // Total = hargaTotal
+    const hargaTotalNum = Number(hargaTotal);
 
     if (isNaN(qtyNum) || qtyNum <= 0) {
       return NextResponse.json({
@@ -146,11 +180,13 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    const tanggalObj = new Date(tanggal);
+
     // Jika pembelian bahan baku
     if (isBahanBaku && bahanBakuId) {
       try {
         // Cek bahan baku
-        const bahanBaku = await prisma.$queryRaw<BahanBakuItem[]>`
+        const bahanBaku = await prisma.$queryRaw<any[]>`
           SELECT * FROM "BahanBaku" WHERE id = ${bahanBakuId}
         `;
 
@@ -162,49 +198,51 @@ export async function POST(request: Request) {
         }
 
         const item = bahanBaku[0];
-        const hargaPerSatuan = Math.round(hargaTotalNum / qtyNum); // Hitung harga per satuan
+        const hargaPerSatuan = Math.round(hargaTotalNum / qtyNum);
 
-        // 1. Insert ke PembelianBahanBaku
-        await prisma.$executeRaw`
-          INSERT INTO "PembelianBahanBaku" (
-            id, "tanggal", "bahanBakuId", qty, harga, total, "createdAt", "updatedAt"
-          ) VALUES (
-            gen_random_uuid()::text, 
-            ${new Date(tanggal)}::timestamp,
-            ${bahanBakuId},
-            ${qtyNum},
-            ${hargaPerSatuan},  -- Simpan harga per satuan
-            ${hargaTotalNum},   -- Simpan total
-            NOW(),
-            NOW()
-          )
-        `;
+        // ✅ TRANSACTION: Insert pembelian, update stok bahan baku, update stok produk
+        await prisma.$transaction(async (tx) => {
+          // 1. Insert ke PembelianBahanBaku
+          await tx.$executeRaw`
+            INSERT INTO "PembelianBahanBaku" (
+              id, "tanggal", "bahanBakuId", qty, harga, total, "createdAt", "updatedAt"
+            ) VALUES (
+              gen_random_uuid()::text, 
+              ${tanggalObj}::timestamp,
+              ${bahanBakuId},
+              ${qtyNum},
+              ${hargaPerSatuan},
+              ${hargaTotalNum},
+              NOW(),
+              NOW()
+            )
+          `;
 
-        console.log('✅ PembelianBahanBaku created');
+          // 2. Update stok bahan baku
+          const totalStokLama = Number(item.stok);
+          const totalHargaLama = totalStokLama * Number(item.harga);
+          const totalStokBaru = totalStokLama + qtyNum;
+          const totalHargaBaru = totalHargaLama + hargaTotalNum;
+          const hargaRataRataBaru = totalStokBaru > 0 ? Math.round(totalHargaBaru / totalStokBaru) : 0;
 
-        // 2. Update stok bahan baku dengan harga rata-rata
-        const totalStokLama = Number(item.stok);
-        const totalHargaLama = totalStokLama * Number(item.harga);
-        const totalStokBaru = totalStokLama + qtyNum;
-        const totalHargaBaru = totalHargaLama + hargaTotalNum;
-        const hargaRataRataBaru = totalStokBaru > 0 ? Math.round(totalHargaBaru / totalStokBaru) : 0;
+          await tx.$executeRaw`
+            UPDATE "BahanBaku" 
+            SET stok = ${totalStokBaru}, harga = ${hargaRataRataBaru}
+            WHERE id = ${bahanBakuId}
+          `;
 
-        await prisma.$executeRaw`
-          UPDATE "BahanBaku" 
-          SET stok = ${totalStokBaru}, harga = ${hargaRataRataBaru}
-          WHERE id = ${bahanBakuId}
-        `;
+          console.log('✅ Stok bahan baku updated');
+        });
 
-        console.log('✅ Stok updated');
+        // ✅ UPDATE STOK PRODUK (di luar transaction atau di dalam)
+        await updateStokProdukDariBahanBaku();
 
         return NextResponse.json({
           status: '✅ Berhasil!',
-          message: 'Pembelian bahan baku berhasil, stok diupdate',
+          message: 'Pembelian bahan baku berhasil, stok produk diupdate',
           data: {
             hargaPerSatuan,
             total: hargaTotalNum,
-            stokBaru: totalStokBaru,
-            hargaRataRataBaru,
           },
         });
       } catch (error: any) {
@@ -224,12 +262,12 @@ export async function POST(request: Request) {
             id, tanggal, nama, detail, qty, harga, total, "createdAt", "updatedAt"
           ) VALUES (
             gen_random_uuid()::text,
-            ${new Date(tanggal)}::timestamp,
+            ${tanggalObj}::timestamp,
             ${nama},
             ${detail || null},
             ${qtyNum},
-            ${Math.round(hargaTotalNum / qtyNum)},  -- Harga per satuan
-            ${hargaTotalNum},                      -- Total
+            ${Math.round(hargaTotalNum / qtyNum)},
+            ${hargaTotalNum},
             NOW(),
             NOW()
           )
@@ -255,6 +293,78 @@ export async function POST(request: Request) {
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message || 'Terjadi kesalahan saat menyimpan data',
+    }, { status: 500 });
+  }
+}
+
+// ============================================
+// DELETE: Hapus pembelian
+// ============================================
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'ID wajib diisi',
+      }, { status: 400 });
+    }
+
+    // Cari data pembelian yang akan dihapus
+    const pembelian = await prisma.$queryRaw<any[]>`
+      SELECT * FROM "PembelianBahanBaku" WHERE id = ${id}
+    `;
+
+    if (!pembelian || pembelian.length === 0) {
+      return NextResponse.json({
+        status: '❌ GAGAL',
+        error: 'Data tidak ditemukan',
+      }, { status: 404 });
+    }
+
+    const item = pembelian[0];
+
+    // ✅ TRANSACTION: Delete pembelian, restore stok bahan baku, update stok produk
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete dari PembelianBahanBaku
+      await tx.$executeRaw`
+        DELETE FROM "PembelianBahanBaku" WHERE id = ${id}
+      `;
+
+      // 2. Restore stok bahan baku
+      const bahanBaku = await tx.$queryRaw<any[]>`
+        SELECT * FROM "BahanBaku" WHERE id = ${item.bahanBakuId}
+      `;
+
+      if (bahanBaku && bahanBaku.length > 0) {
+        const bb = bahanBaku[0];
+        const stokSaatIni = Number(bb.stok);
+        const stokBaru = stokSaatIni - Number(item.qty);
+        
+        await tx.$executeRaw`
+          UPDATE "BahanBaku" 
+          SET stok = ${stokBaru}
+          WHERE id = ${item.bahanBakuId}
+        `;
+      }
+
+      console.log('✅ Stok bahan baku restored');
+    });
+
+    // ✅ UPDATE STOK PRODUK
+    await updateStokProdukDariBahanBaku();
+
+    return NextResponse.json({
+      status: '✅ Berhasil!',
+      message: 'Data berhasil dihapus, stok produk diupdate',
+    });
+  } catch (error: any) {
+    console.error('❌ Error deleting pembelian:', error);
+    return NextResponse.json({
+      status: '❌ GAGAL',
+      error: error.message,
     }, { status: 500 });
   }
 }
