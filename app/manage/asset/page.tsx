@@ -1,20 +1,23 @@
-// app/manage/overhead/page.tsx
+// app/manage/asset/override/page.tsx
 
 'use client';
 
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 
-interface Asset {
+interface LaporanItem {
   id: string;
-  name: string;
-  category: string;
-  quantity: number;
-  price: number;
-  total: number;
-  perMonth: number;
-  status: string;
-  createdAt: string;
+  bulan: Date;
+  bulanStr: string;
+  qtyProduksi: number;
+  costPerPortion: number;
+  jumlahCost: number;
+  overhead: number;
+  gaji: number;
+  labaKotor: number;
+  profit: number;
+  defaultOverhead: number;
+  isOverridden: boolean;
 }
 
 const formatRupiah = (angka: number) => {
@@ -25,37 +28,28 @@ const formatRupiah = (angka: number) => {
   }).format(angka);
 };
 
-export default function OverheadPage() {
-  const [data, setData] = useState<Asset[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [totalOverhead, setTotalOverhead] = useState(0);
+const formatBulan = (bulanStr: string) => {
+  const [year, month] = bulanStr.split('-').map(Number);
+  const date = new Date(year, month - 1, 1);
+  return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+};
 
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    quantity: '',
-    price: '',
-    perMonth: '',
-    status: 'Baik',
-  });
+export default function OverrideOverheadPage() {
+  const [data, setData] = useState<LaporanItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/asset');
+      const res = await fetch('/api/laporan-bulanan/override-overhead');
       const result = await res.json();
       
       if (result.status === '✅ Berhasil!') {
         setData(result.data);
-        setTotalOverhead(result.metadata?.totalOverheadPerBulan || 0);
-      } else {
-        throw new Error(result.error);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error) {
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -65,45 +59,20 @@ export default function OverheadPage() {
     fetchData();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.name || !formData.category || !formData.quantity || !formData.price || !formData.perMonth) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Data tidak lengkap!',
-        text: 'Semua field wajib diisi',
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
+  // ✅ Override single bulan
+  const handleOverride = async (bulan: string, value: number) => {
     try {
-      const res = await fetch('/api/asset', {
+      const res = await fetch('/api/laporan-bulanan/override-overhead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          quantity: Number(formData.quantity),
-          price: Number(formData.price),
-          perMonth: Number(formData.perMonth),
-        }),
+        body: JSON.stringify({ bulan, overhead: value }),
       });
 
       const result = await res.json();
 
       if (result.status === '✅ Berhasil!') {
-        setShowForm(false);
-        setFormData({ name: '', category: '', quantity: '', price: '', perMonth: '', status: 'Baik' });
         await fetchData();
-        Swal.fire({
-          icon: 'success',
-          title: '✅ Berhasil!',
-          text: 'Asset berhasil ditambahkan',
-          timer: 1500,
-          showConfirmButton: false,
-        });
+        return true;
       } else {
         throw new Error(result.error);
       }
@@ -113,58 +82,160 @@ export default function OverheadPage() {
         title: 'Gagal!',
         text: error.message,
       });
-    } finally {
-      setIsSubmitting(false);
+      return false;
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  // ✅ Set 0 Semua
+  const handleSetAllZero = async () => {
+    if (data.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Tidak ada data!',
+        text: 'Belum ada laporan bulanan',
+      });
+      return;
+    }
+
     const result = await Swal.fire({
-      title: `Hapus ${name}?`,
-      text: "Data akan dihapus permanen!",
+      title: '⚠️ Set 0 Semua Overhead?',
+      html: `
+        <p>Anda akan mengatur <strong>semua overhead</strong> menjadi <strong>Rp 0</strong> untuk ${data.length} bulan.</p>
+        <p class="text-xs text-gray-400 mt-2">Tindakan ini dapat dibatalkan dengan klik "Reset Semua"</p>
+      `,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
-      confirmButtonText: 'Ya, hapus!',
-      cancelButtonText: 'Batal'
+      confirmButtonText: 'Ya, Set 0 Semua!',
+      cancelButtonText: 'Batal',
     });
 
     if (result.isConfirmed) {
-      try {
-        const res = await fetch(`/api/asset?id=${id}`, { method: 'DELETE' });
-        if (res.ok) {
-          await fetchData();
-          Swal.fire({ icon: 'success', title: '✅ Berhasil!', timer: 1500, showConfirmButton: false });
+      setIsSubmitting(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const item of data) {
+        const success = await handleOverride(item.bulanStr, 0);
+        if (success) {
+          successCount++;
         } else {
-          throw new Error('Gagal menghapus');
+          failCount++;
         }
-      } catch (error) {
-        Swal.fire({ icon: 'error', title: 'Gagal!' });
       }
+
+      setIsSubmitting(false);
+
+      Swal.fire({
+        icon: successCount > 0 ? 'success' : 'error',
+        title: successCount > 0 ? '✅ Berhasil!' : '❌ Gagal!',
+        html: `
+          <p>${successCount} bulan berhasil di-set 0</p>
+          ${failCount > 0 ? `<p class="text-red-500">${failCount} bulan gagal</p>` : ''}
+        `,
+        timer: 2000,
+        showConfirmButton: true,
+      });
     }
   };
 
-  const handleStatusChange = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === 'Baik' ? 'Rusak' : 'Baik';
-    
-    try {
-      const res = await fetch('/api/asset', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status: newStatus }),
+  // ✅ Reset Semua ke Default
+  const handleResetAll = async () => {
+    if (data.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Tidak ada data!',
+        text: 'Belum ada laporan bulanan',
       });
+      return;
+    }
 
-      if (res.ok) {
-        await fetchData();
+    const overriddenCount = data.filter(d => d.isOverridden).length;
+    
+    if (overriddenCount === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Tidak ada override!',
+        text: 'Semua bulan sudah menggunakan nilai default',
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: '🔄 Reset Semua Overhead?',
+      html: `
+        <p>Anda akan mengembalikan <strong>${overriddenCount}</strong> bulan ke nilai default.</p>
+        <p class="text-xs text-gray-400 mt-2">Nilai default: ${formatRupiah(data[0]?.defaultOverhead || 0)}</p>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#3B82F6',
+      confirmButtonText: 'Ya, Reset Semua!',
+      cancelButtonText: 'Batal',
+    });
+
+    if (result.isConfirmed) {
+      setIsSubmitting(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const item of data) {
+        if (item.isOverridden) {
+          const success = await handleOverride(item.bulanStr, item.defaultOverhead);
+          if (success) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        }
+      }
+
+      setIsSubmitting(false);
+
+      Swal.fire({
+        icon: 'success',
+        title: '✅ Berhasil!',
+        html: `
+          <p>${successCount} bulan berhasil direset ke default</p>
+          ${failCount > 0 ? `<p class="text-red-500">${failCount} bulan gagal</p>` : ''}
+        `,
+        timer: 2000,
+        showConfirmButton: true,
+      });
+    }
+  };
+
+  // ✅ Override single dengan prompt
+  const handleEditSingle = async (bulan: string, currentOverhead: number) => {
+    const { value } = await Swal.fire({
+      title: `Override Overhead ${formatBulan(bulan)}`,
+      text: 'Masukkan nilai overhead baru (0 untuk menghapus)',
+      input: 'number',
+      inputValue: currentOverhead,
+      inputPlaceholder: 'Masukkan nominal overhead',
+      showCancelButton: true,
+      confirmButtonText: 'Simpan',
+      cancelButtonText: 'Batal',
+      preConfirm: (value) => {
+        if (value === '' || value === null || value === undefined) {
+          Swal.showValidationMessage('Nilai tidak boleh kosong');
+          return;
+        }
+        return Number(value);
+      },
+    });
+
+    if (value !== undefined) {
+      const success = await handleOverride(bulan, value);
+      if (success) {
         Swal.fire({
           icon: 'success',
-          title: '✅ Status diupdate!',
+          title: '✅ Berhasil!',
+          text: `Overhead diupdate menjadi ${formatRupiah(value)}`,
           timer: 1500,
           showConfirmButton: false,
         });
       }
-    } catch (error) {
-      Swal.fire({ icon: 'error', title: 'Gagal update status!' });
     }
   };
 
@@ -185,177 +256,101 @@ export default function OverheadPage() {
         {/* Header */}
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">🏢 Management Overhead / Asset</h1>
+            <h1 className="text-2xl font-bold text-gray-900">🎛️ Override Overhead Bulanan</h1>
             <p className="text-sm text-gray-500">
-              Total Overhead per Bulan: <span className="font-bold text-purple-600">{formatRupiah(totalOverhead)}</span>
+              Atur overhead per bulan secara manual (override dari Asset)
             </p>
           </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Tambah Asset
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {/* ✅ Tombol Refresh */}
+            <button
+              onClick={fetchData}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+
+            {/* ✅ Tombol Set 0 Semua */}
+            <button
+              onClick={handleSetAllZero}
+              disabled={isSubmitting || data.length === 0}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+              </svg>
+              0️⃣ Set 0 Semua
+            </button>
+
+            {/* ✅ Tombol Reset Semua */}
+            <button
+              onClick={handleResetAll}
+              disabled={isSubmitting || data.filter(d => d.isOverridden).length === 0}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              ↩️ Reset Semua
+            </button>
+          </div>
         </div>
 
-        {/* Form Tambah */}
-        {showForm && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">📝 Tambah Asset / Overhead</h3>
-            <form onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nama Asset</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Komputer, AC, dll"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                  >
-                    <option value="">Pilih Kategori</option>
-                    <option value="Elektronik">Elektronik</option>
-                    <option value="Furniture">Furniture</option>
-                    <option value="Kendaraan">Kendaraan</option>
-                    <option value="Bangunan">Bangunan</option>
-                    <option value="Lainnya">Lainnya</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  >
-                    <option value="Baik">Baik</option>
-                    <option value="Rusak">Rusak</option>
-                    <option value="Maintenance">Maintenance</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                  <input
-                    type="number"
-                    placeholder="Jumlah"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Harga (Rp)</label>
-                  <input
-                    type="number"
-                    placeholder="Harga per unit"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Biaya per Bulan (Rp)
-                    <span className="text-xs text-gray-400 ml-1">(overhead)</span>
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="Biaya per bulan"
-                    value={formData.perMonth}
-                    onChange={(e) => setFormData({ ...formData, perMonth: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                    min="1"
-                  />
-                </div>
-              </div>
-
-              {/* Preview Total */}
-              {formData.quantity && formData.price && (
-                <div className="mt-4 p-3 bg-purple-50 rounded-lg text-sm text-gray-600">
-                  <span className="font-medium">Total Asset:</span>
-                  <span className="ml-2">
-                    {Number(formData.quantity)} × {formatRupiah(Number(formData.price))} = 
-                    <span className="font-bold text-purple-600 ml-1">
-                      {formatRupiah(Number(formData.quantity) * Number(formData.price))}
-                    </span>
-                  </span>
-                  <span className="ml-4 text-gray-400">
-                    Overhead/bulan: {formatRupiah(Number(formData.perMonth) || 0)}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex gap-3 mt-4">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm transition-colors disabled:opacity-50"
-                >
-                  {isSubmitting ? '⏳ Menyimpan...' : '💾 Simpan'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-sm"
-                >
-                  ❌ Batal
-                </button>
-              </div>
-            </form>
+        {/* Info Card */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">ℹ️</span>
+            <div>
+              <p className="text-sm text-blue-700 font-medium">Cara Kerja Overhead:</p>
+              <ul className="text-xs text-blue-600 mt-1 space-y-1">
+                <li>• Default overhead diambil dari total <strong>Asset.perMonth</strong></li>
+                <li>• Anda bisa <strong>override</strong> nilai overhead per bulan</li>
+                <li>• Klik <strong>Reset</strong> untuk kembali ke nilai default</li>
+                <li>• Klik <strong>Set 0</strong> untuk menghapus overhead bulan tersebut</li>
+                <li>• Gunakan <strong>Set 0 Semua</strong> untuk semua bulan</li>
+                <li>• Gunakan <strong>Reset Semua</strong> untuk mengembalikan semua ke default</li>
+              </ul>
+            </div>
           </div>
-        )}
+        </div>
 
         {/* Summary */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-4 text-white">
-            <p className="text-sm opacity-80">Total Asset</p>
+            <p className="text-sm opacity-80">Total Bulan</p>
             <p className="text-2xl font-bold">{data.length}</p>
           </div>
-          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-4 text-white">
-            <p className="text-sm opacity-80">Aktif</p>
-            <p className="text-2xl font-bold">{data.filter(d => d.status !== 'Rusak').length}</p>
-          </div>
-          <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-2xl p-4 text-white">
-            <p className="text-sm opacity-80">Rusak</p>
-            <p className="text-2xl font-bold">{data.filter(d => d.status === 'Rusak').length}</p>
-          </div>
           <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-4 text-white">
-            <p className="text-sm opacity-80">Overhead / Bulan</p>
-            <p className="text-2xl font-bold">{formatRupiah(totalOverhead)}</p>
+            <p className="text-sm opacity-80">Override</p>
+            <p className="text-2xl font-bold">{data.filter(d => d.isOverridden).length}</p>
+          </div>
+          <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-4 text-white">
+            <p className="text-sm opacity-80">Default</p>
+            <p className="text-2xl font-bold">{data.filter(d => !d.isOverridden).length}</p>
+          </div>
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-4 text-white">
+            <p className="text-sm opacity-80">Default Overhead</p>
+            <p className="text-xl font-bold">{formatRupiah(data[0]?.defaultOverhead || 0)}</p>
           </div>
         </div>
 
         {/* Tabel */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Nama</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Kategori</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Qty</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Harga</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Total</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Per Bulan</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Bulan</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Qty Produksi</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Cost</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Gaji</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Laba Kotor</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Overhead</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Profit</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Aksi</th>
                 </tr>
               </thead>
@@ -363,41 +358,88 @@ export default function OverheadPage() {
                 {data.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                      📭 Belum ada asset
+                      📭 Belum ada laporan bulanan
                     </td>
                   </tr>
                 ) : (
                   data.map((item) => (
                     <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                      <td className="px-4 py-3 font-medium text-gray-900">{item.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{item.category}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{item.quantity}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{formatRupiah(item.price)}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{formatRupiah(item.total)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-purple-600">
-                        {formatRupiah(item.perMonth)}
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {formatBulan(item.bulanStr)}
+                        {item.isOverridden && (
+                          <span className="ml-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">
+                            Override
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-700">{item.qtyProduksi}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatRupiah(item.jumlahCost)}</td>
+                      <td className="px-4 py-3 text-right text-pink-600">{formatRupiah(item.gaji)}</td>
+                      <td className="px-4 py-3 text-right text-green-600">{formatRupiah(item.labaKotor)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={`font-medium ${item.isOverridden ? 'text-orange-600' : 'text-purple-600'}`}>
+                          {formatRupiah(item.overhead)}
+                        </span>
+                        {!item.isOverridden && (
+                          <span className="text-xs text-gray-400 ml-1">(default)</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-blue-600">
+                        {formatRupiah(item.profit)}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleStatusChange(item.id, item.status)}
-                          className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
-                            item.status === 'Baik'
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : item.status === 'Rusak'
-                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                              : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                          }`}
-                        >
-                          {item.status}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleDelete(item.id, item.name)}
-                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          🗑️
-                        </button>
+                        <div className="flex justify-center gap-1">
+                          {/* ✅ Edit Single */}
+                          <button
+                            onClick={() => handleEditSingle(item.bulanStr, item.overhead)}
+                            disabled={isSubmitting}
+                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                          >
+                            ✏️ Edit
+                          </button>
+                          {/* ✅ Set 0 Single */}
+                          <button
+                            onClick={() => {
+                              handleOverride(item.bulanStr, 0).then(success => {
+                                if (success) {
+                                  Swal.fire({
+                                    icon: 'success',
+                                    title: '✅ Berhasil!',
+                                    text: `Overhead ${formatBulan(item.bulanStr)} di-set 0`,
+                                    timer: 1500,
+                                    showConfirmButton: false,
+                                  });
+                                }
+                              });
+                            }}
+                            disabled={isSubmitting}
+                            className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+                          >
+                            0️⃣ Set 0
+                          </button>
+                          {/* ✅ Reset Single (hanya jika override) */}
+                          {item.isOverridden && (
+                            <button
+                              onClick={() => {
+                                handleOverride(item.bulanStr, item.defaultOverhead).then(success => {
+                                  if (success) {
+                                    Swal.fire({
+                                      icon: 'success',
+                                      title: '✅ Berhasil!',
+                                      text: `Overhead ${formatBulan(item.bulanStr)} direset ke default`,
+                                      timer: 1500,
+                                      showConfirmButton: false,
+                                    });
+                                  }
+                                });
+                              }}
+                              disabled={isSubmitting}
+                              className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50"
+                            >
+                              ↩️ Reset
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -405,8 +447,13 @@ export default function OverheadPage() {
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-400">
-            Total {data.length} asset | Overhead/bulan: {formatRupiah(totalOverhead)}
+          {/* Footer */}
+          <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
+            <span>Total {data.length} bulan</span>
+            <span>
+              Override: {data.filter(d => d.isOverridden).length} | 
+              Default: {data.filter(d => !d.isOverridden).length}
+            </span>
           </div>
         </div>
       </div>
