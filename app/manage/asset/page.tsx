@@ -1,4 +1,4 @@
-// app/manage/overhead/page.tsx
+// app/manage/asset/page.tsx
 
 'use client';
 
@@ -55,7 +55,10 @@ export default function OverheadPage() {
 
   // ========== State Laporan untuk Override ==========
   const [laporanData, setLaporanData] = useState<LaporanItem[]>([]);
+  const [filteredLaporan, setFilteredLaporan] = useState<LaporanItem[]>([]);
   const [loadingLaporan, setLoadingLaporan] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -72,7 +75,7 @@ export default function OverheadPage() {
       setLoading(true);
       const res = await fetch('/api/asset');
       const result = await res.json();
-      
+
       if (result.status === '✅ Berhasil!') {
         setData(result.data);
         setTotalOverhead(result.metadata?.totalOverheadPerBulan || 0);
@@ -90,11 +93,23 @@ export default function OverheadPage() {
   const fetchLaporan = async () => {
     try {
       setLoadingLaporan(true);
-      const res = await fetch('/api/laporan-bulanan/override-overhead');
+      // ✅ Ganti ke /api/asset?action=get-laporan
+      const res = await fetch('/api/asset?action=get-laporan');
       const result = await res.json();
-      
+
       if (result.status === '✅ Berhasil!') {
         setLaporanData(result.data);
+
+        const years = result.data.map((item: LaporanItem) => {
+          return item.bulanStr.split('-')[0];
+        });
+        const uniqueYears = [...new Set(years)] as string[];
+        uniqueYears.sort();
+        setAvailableYears(uniqueYears);
+
+        if (uniqueYears.length > 0 && !uniqueYears.includes(selectedYear)) {
+          setSelectedYear(uniqueYears[uniqueYears.length - 1]);
+        }
       }
     } catch (error) {
       console.error('Error fetching laporan:', error);
@@ -108,10 +123,46 @@ export default function OverheadPage() {
     fetchLaporan();
   }, []);
 
+  const handleOverride = async (bulan: string, value: number) => {
+    try {
+      // ✅ Ganti ke /api/asset?action=override-overhead
+      const res = await fetch('/api/asset?action=override-overhead', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bulan, overhead: value }),
+      });
+
+      const result = await res.json();
+
+      if (result.status === '✅ Berhasil!') {
+        await fetchLaporan();
+        return true;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error: any) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal!',
+        text: error.message,
+      });
+      return false;
+    }
+  };
+
+  // ========== Filter laporan berdasarkan tahun ==========
+  useEffect(() => {
+    const filtered = laporanData.filter(item => {
+      const year = item.bulanStr.split('-')[0];
+      return year === selectedYear;
+    });
+    setFilteredLaporan(filtered);
+  }, [laporanData, selectedYear]);
+
   // ========== CRUD Asset ==========
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.category || !formData.quantity || !formData.price || !formData.perMonth) {
       Swal.fire({
         icon: 'warning',
@@ -192,7 +243,7 @@ export default function OverheadPage() {
 
   const handleStatusChange = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Baik' ? 'Rusak' : 'Baik';
-    
+
     try {
       const res = await fetch('/api/asset', {
         method: 'PATCH',
@@ -215,24 +266,25 @@ export default function OverheadPage() {
     }
   };
 
-  // ========== 🔄 Update dari Asset ==========
+  // ========== 🔄 Update dari Asset (hanya untuk tahun yang dipilih) ==========
   const handleUpdateFromAsset = async () => {
-    if (laporanData.length === 0) {
+    if (filteredLaporan.length === 0) {
       Swal.fire({
         icon: 'warning',
         title: 'Tidak ada data!',
-        text: 'Belum ada laporan bulanan',
+        text: `Belum ada laporan untuk tahun ${selectedYear}`,
       });
       return;
     }
 
     const result = await Swal.fire({
-      title: '🔄 Update Perhitungan Asset?',
+      title: `🔄 Update Perhitungan Asset ${selectedYear}?`,
       html: `
-        <p>Anda akan <strong>menghitung ulang</strong> overhead dari Asset untuk semua laporan.</p>
-        <p class="text-xs text-gray-400 mt-2">Override manual akan direset ke nilai default Asset!</p>
-        <p class="text-xs text-gray-400">Total Asset saat ini: <strong>${formatRupiah(totalOverhead)}</strong></p>
-      `,
+      <p>Anda akan <strong>menghitung ulang</strong> overhead dari Asset untuk tahun <strong>${selectedYear}</strong>.</p>
+      <p class="text-xs text-gray-400 mt-2">Override manual akan direset ke nilai default Asset!</p>
+      <p class="text-xs text-gray-400">Total Asset saat ini: <strong>${formatRupiah(totalOverhead)}</strong></p>
+      <p class="text-xs text-gray-400">Jumlah laporan: <strong>${filteredLaporan.length}</strong> bulan</p>
+    `,
       icon: 'question',
       showCancelButton: true,
       confirmButtonColor: '#3B82F6',
@@ -242,12 +294,15 @@ export default function OverheadPage() {
 
     if (result.isConfirmed) {
       setIsSubmitting(true);
-      
+
       try {
-        const res = await fetch('/api/asset/update-laporan', {
-          method: 'POST',
+        // ✅ Panggil PATCH /api/asset?action=update-laporan
+        const res = await fetch('/api/asset?action=update-laporan', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tahun: selectedYear }),
         });
-        
+
         const result = await res.json();
 
         if (result.status === '✅ Berhasil!') {
@@ -256,7 +311,7 @@ export default function OverheadPage() {
           Swal.fire({
             icon: 'success',
             title: '✅ Berhasil!',
-            text: `Berhasil update ${result.metadata?.updated || 0} laporan dengan overhead ${formatRupiah(result.metadata?.defaultOverhead || 0)}`,
+            text: `Berhasil update ${result.metadata?.updated || 0} laporan tahun ${selectedYear} dengan overhead ${formatRupiah(result.metadata?.defaultOverhead || 0)}`,
             timer: 2000,
             showConfirmButton: false,
           });
@@ -271,142 +326,6 @@ export default function OverheadPage() {
         });
       } finally {
         setIsSubmitting(false);
-      }
-    }
-  };
-
-  // ========== 🔄 Reset Laporan Tahunan ==========
-  const handleResetLaporan = async () => {
-    if (laporanData.length === 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Tidak ada data!',
-        text: 'Belum ada laporan bulanan',
-      });
-      return;
-    }
-
-    const tahunIni = new Date().getFullYear();
-    const laporanTahunIni = laporanData.filter(d => {
-      const year = parseInt(d.bulanStr.split('-')[0]);
-      return year === tahunIni;
-    });
-
-    if (laporanTahunIni.length === 0) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Tidak ada laporan tahun ini!',
-        text: `Belum ada laporan untuk tahun ${tahunIni}`,
-      });
-      return;
-    }
-
-    const result = await Swal.fire({
-      title: `🔄 Reset Laporan ${tahunIni}?`,
-      html: `
-        <p>Anda akan <strong>mereset semua laporan</strong> tahun ${tahunIni} ke nilai 0.</p>
-        <p class="text-xs text-gray-400 mt-2">Jumlah laporan: <strong>${laporanTahunIni.length}</strong> bulan</p>
-        <p class="text-xs text-red-500">⚠️ Semua data akan hilang!</p>
-      `,
-      icon: 'warning',
-      showCancelButton: true,
-      confirmButtonColor: '#d33',
-      confirmButtonText: 'Ya, Reset!',
-      cancelButtonText: 'Batal',
-    });
-
-    if (result.isConfirmed) {
-      setIsSubmitting(true);
-      
-      try {
-        const res = await fetch('/api/laporan-bulanan/reset-tahun', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tahun: tahunIni }),
-        });
-        
-        const result = await res.json();
-
-        if (result.status === '✅ Berhasil!') {
-          await fetchLaporan();
-          Swal.fire({
-            icon: 'success',
-            title: '✅ Berhasil!',
-            text: `Berhasil reset ${result.metadata?.reset || 0} laporan`,
-            timer: 1500,
-            showConfirmButton: false,
-          });
-        } else {
-          throw new Error(result.error);
-        }
-      } catch (error: any) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Gagal!',
-          text: error.message,
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
-    }
-  };
-
-  // ========== Override Single ==========
-  const handleOverride = async (bulan: string, value: number) => {
-    try {
-      const res = await fetch('/api/laporan-bulanan/override-overhead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bulan, overhead: value }),
-      });
-
-      const result = await res.json();
-
-      if (result.status === '✅ Berhasil!') {
-        await fetchLaporan();
-        return true;
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (error: any) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Gagal!',
-        text: error.message,
-      });
-      return false;
-    }
-  };
-
-  const handleEditSingle = async (bulan: string, currentOverhead: number) => {
-    const { value } = await Swal.fire({
-      title: `Override Overhead ${formatBulan(bulan)}`,
-      text: 'Masukkan nilai overhead baru (0 untuk menghapus)',
-      input: 'number',
-      inputValue: currentOverhead,
-      inputPlaceholder: 'Masukkan nominal overhead',
-      showCancelButton: true,
-      confirmButtonText: 'Simpan',
-      cancelButtonText: 'Batal',
-      preConfirm: (value) => {
-        if (value === '' || value === null || value === undefined) {
-          Swal.showValidationMessage('Nilai tidak boleh kosong');
-          return;
-        }
-        return Number(value);
-      },
-    });
-
-    if (value !== undefined) {
-      const success = await handleOverride(bulan, value);
-      if (success) {
-        Swal.fire({
-          icon: 'success',
-          title: '✅ Berhasil!',
-          text: `Overhead diupdate menjadi ${formatRupiah(value)}`,
-          timer: 1500,
-          showConfirmButton: false,
-        });
       }
     }
   };
@@ -447,28 +366,16 @@ export default function OverheadPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            {/* ✅ Tombol Update dari Asset */}
+            {/* ✅ Tombol Update dari Asset (untuk tahun yang dipilih) */}
             <button
               onClick={handleUpdateFromAsset}
-              disabled={isSubmitting || laporanData.length === 0}
+              disabled={isSubmitting || filteredLaporan.length === 0}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               🔄 Update dari Asset
-            </button>
-
-            {/* ✅ Tombol Reset Laporan */}
-            <button
-              onClick={handleResetLaporan}
-              disabled={isSubmitting || laporanData.length === 0}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              🔄 Reset Laporan {new Date().getFullYear()}
             </button>
 
             <button
@@ -573,7 +480,7 @@ export default function OverheadPage() {
                 <div className="mt-4 p-3 bg-purple-50 rounded-lg text-sm text-gray-600">
                   <span className="font-medium">Total Asset:</span>
                   <span className="ml-2">
-                    {Number(formData.quantity)} × {formatRupiah(Number(formData.price))} = 
+                    {Number(formData.quantity)} × {formatRupiah(Number(formData.price))} =
                     <span className="font-bold text-purple-600 ml-1">
                       {formatRupiah(Number(formData.quantity) * Number(formData.price))}
                     </span>
@@ -605,7 +512,7 @@ export default function OverheadPage() {
         )}
 
         {/* ========== SUMMARY ASSET ========== */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-4 text-white">
             <p className="text-sm opacity-80">Total Asset</p>
             <p className="text-2xl font-bold">{data.length}</p>
@@ -622,7 +529,7 @@ export default function OverheadPage() {
             <p className="text-sm opacity-80">Overhead / Bulan</p>
             <p className="text-2xl font-bold">{formatRupiah(totalOverhead)}</p>
           </div>
-        </div>
+        </div> */}
 
         {/* ========== TABEL ASSET ========== */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6">
@@ -664,13 +571,12 @@ export default function OverheadPage() {
                       <td className="px-4 py-3 text-center">
                         <button
                           onClick={() => handleStatusChange(item.id, item.status)}
-                          className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
-                            item.status === 'Baik'
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : item.status === 'Rusak'
+                          className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${item.status === 'Baik'
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : item.status === 'Rusak'
                               ? 'bg-red-100 text-red-700 hover:bg-red-200'
                               : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                          }`}
+                            }`}
                         >
                           {item.status}
                         </button>
@@ -694,13 +600,25 @@ export default function OverheadPage() {
           </div>
         </div>
 
-        {/* ========== TABEL OVERRIDE OVERHEAD ========== */}
+        {/* ========== TABEL OVERRIDE OVERHEAD (dengan filter tahun) ========== */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex justify-between items-center flex-wrap gap-2">
             <h3 className="text-sm font-semibold text-gray-700">🎛️ Override Overhead per Bulan</h3>
-            <span className="text-xs text-gray-400">
-              {loadingLaporan ? 'Memuat...' : `${laporanData.length} bulan`}
-            </span>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500">Tahun:</label>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+                className="px-2 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+              <span className="text-xs text-gray-400 ml-2">
+                {loadingLaporan ? 'Memuat...' : `${filteredLaporan.length} bulan`}
+              </span>
+            </div>
           </div>
           {loadingLaporan ? (
             <div className="flex items-center justify-center py-10">
@@ -718,18 +636,17 @@ export default function OverheadPage() {
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-400 uppercase">Laba Kotor</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-400 uppercase">Overhead</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-400 uppercase">Profit</th>
-                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-400 uppercase">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {laporanData.length === 0 ? (
+                  {filteredLaporan.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
-                        📭 Belum ada laporan bulanan
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                        📭 Belum ada laporan untuk tahun {selectedYear}
                       </td>
                     </tr>
                   ) : (
-                    laporanData.map((item) => (
+                    filteredLaporan.map((item) => (
                       <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                         <td className="px-4 py-2 font-medium text-gray-900">
                           {formatBulan(item.bulanStr)}
@@ -754,57 +671,6 @@ export default function OverheadPage() {
                         <td className="px-4 py-2 text-right font-bold text-blue-600">
                           {formatRupiah(item.profit)}
                         </td>
-                        <td className="px-4 py-2 text-center">
-                          <div className="flex justify-center gap-1">
-                            <button
-                              onClick={() => handleEditSingle(item.bulanStr, item.overhead)}
-                              disabled={isSubmitting}
-                              className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
-                            >
-                              ✏️ Edit
-                            </button>
-                            <button
-                              onClick={() => {
-                                handleOverride(item.bulanStr, 0).then(success => {
-                                  if (success) {
-                                    Swal.fire({
-                                      icon: 'success',
-                                      title: '✅ Berhasil!',
-                                      text: `Overhead ${formatBulan(item.bulanStr)} di-set 0`,
-                                      timer: 1500,
-                                      showConfirmButton: false,
-                                    });
-                                  }
-                                });
-                              }}
-                              disabled={isSubmitting}
-                              className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
-                            >
-                              0️⃣ Set 0
-                            </button>
-                            {item.isOverridden && (
-                              <button
-                                onClick={() => {
-                                  handleOverride(item.bulanStr, item.defaultOverhead).then(success => {
-                                    if (success) {
-                                      Swal.fire({
-                                        icon: 'success',
-                                        title: '✅ Berhasil!',
-                                        text: `Overhead ${formatBulan(item.bulanStr)} direset ke default`,
-                                        timer: 1500,
-                                        showConfirmButton: false,
-                                      });
-                                    }
-                                  });
-                                }}
-                                disabled={isSubmitting}
-                                className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50"
-                              >
-                                ↩️ Reset
-                              </button>
-                            )}
-                          </div>
-                        </td>
                       </tr>
                     ))
                   )}
@@ -813,10 +679,10 @@ export default function OverheadPage() {
             </div>
           )}
           <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-400 flex justify-between">
-            <span>Total {laporanData.length} bulan</span>
+            <span>Total {filteredLaporan.length} bulan</span>
             <span>
-              Override: {laporanData.filter(d => d.isOverridden).length} | 
-              Default: {laporanData.filter(d => !d.isOverridden).length}
+              Override: {filteredLaporan.filter(d => d.isOverridden).length} |
+              Default: {filteredLaporan.filter(d => !d.isOverridden).length}
             </span>
           </div>
         </div>

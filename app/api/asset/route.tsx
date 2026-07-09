@@ -1,14 +1,13 @@
 // app/api/asset/route.ts
 
 import { prisma } from '@/app/lib/prisma';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // ============================================
-// HELPER: Update Overhead di Semua Laporan Bulanan
+// HELPER: Update Overhead di Laporan Bulanan (per Tahun)
 // ============================================
-async function updateAllLaporanOverhead() {
+async function updateLaporanByYear(tahun: string) {
   try {
-    // 1. Ambil total overhead dari Asset (status != Rusak)
     const overheadData = await prisma.$queryRaw<{ total: number }[]>`
       SELECT COALESCE(SUM("perMonth"), 0) as total
       FROM "Asset"
@@ -18,29 +17,77 @@ async function updateAllLaporanOverhead() {
     const defaultOverhead = Number(overheadData[0]?.total) || 0;
     console.log(`📊 Default overhead: ${defaultOverhead}`);
 
-    // 2. Ambil semua laporan bulanan
+    const startDate = new Date(Number(tahun), 0, 1);
+    const endDate = new Date(Number(tahun), 11, 31, 23, 59, 59);
+
+    const laporanList = await prisma.laporanBulanan.findMany({
+      where: {
+        bulan: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
+
+    if (laporanList.length === 0) {
+      return {
+        success: false,
+        message: `Tidak ada laporan untuk tahun ${tahun}`,
+        updated: 0
+      };
+    }
+
+    let updatedCount = 0;
+
+    for (const laporan of laporanList) {
+      const labaKotor = laporan.labaKotor;
+      const gaji = laporan.gaji;
+      const profitBaru = labaKotor - gaji - defaultOverhead;
+
+      await prisma.laporanBulanan.update({
+        where: { id: laporan.id },
+        data: {
+          overhead: defaultOverhead,
+          profit: profitBaru,
+          updatedAt: new Date(),
+        },
+      });
+      updatedCount++;
+    }
+
+    console.log(`✅ Overhead ${updatedCount} laporan tahun ${tahun} diupdate ke ${defaultOverhead}`);
+
+    return {
+      success: true,
+      message: `Berhasil update ${updatedCount} laporan tahun ${tahun}`,
+      updated: updatedCount,
+      defaultOverhead,
+    };
+  } catch (error) {
+    console.error('❌ Error updating laporan overhead:', error);
+    throw error;
+  }
+}
+
+// ============================================
+// HELPER: Update Overhead di Semua Laporan Bulanan
+// ============================================
+async function updateAllLaporanOverhead() {
+  try {
+    const overheadData = await prisma.$queryRaw<{ total: number }[]>`
+      SELECT COALESCE(SUM("perMonth"), 0) as total
+      FROM "Asset"
+      WHERE status != 'Rusak'
+    `;
+
+    const defaultOverhead = Number(overheadData[0]?.total) || 0;
+    console.log(`📊 Default overhead: ${defaultOverhead}`);
+
     const laporanList = await prisma.laporanBulanan.findMany({
       orderBy: { bulan: 'asc' },
     });
 
-    // 3. Update setiap laporan dengan default overhead (kecuali yang sudah di-override)
-    // Tapi karena kita tidak tahu mana yang di-override, kita hanya update yang belum di-override
-    // Cara: update semua laporan, tapi hanya yang overhead-nya sama dengan default sebelumnya
-    // Atau kita simpan flag isOverridden di database? (butuh migrasi)
-    
-    // Untuk sekarang: update semua laporan dengan default overhead
-    // TAPI hati-hati: ini akan menghapus override manual!
-    // Jadi kita perlu cara untuk tahu mana yang di-override
-    
-    // Opsi 1: Update semua laporan (akan menghapus override)
-    // Opsi 2: Hanya update laporan yang belum pernah di-override
-    
-    // Saya pilih Opsi 2: Hanya update yang overhead-nya sama dengan default sebelumnya
-    // Tapi kita tidak punya data default sebelumnya...
-    // Jadi kita gunakan pendekatan: update semua laporan, tapi beri warning
-
     for (const laporan of laporanList) {
-      // Recalculate profit dengan overhead baru
       const labaKotor = laporan.labaKotor;
       const gaji = laporan.gaji;
       const profitBaru = labaKotor - gaji - defaultOverhead;
@@ -56,10 +103,10 @@ async function updateAllLaporanOverhead() {
     }
 
     console.log(`✅ Overhead semua laporan diupdate ke ${defaultOverhead}`);
-    return { 
-      success: true, 
-      defaultOverhead, 
-      updated: laporanList.length 
+    return {
+      success: true,
+      defaultOverhead,
+      updated: laporanList.length
     };
   } catch (error) {
     console.error('❌ Error updating laporan overhead:', error);
@@ -68,10 +115,53 @@ async function updateAllLaporanOverhead() {
 }
 
 // ============================================
-// GET: Ambil semua asset
+// GET: Ambil semua asset ATAU ambil laporan
 // ============================================
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+
+    // ========== Jika action = 'get-laporan' ==========
+    if (action === 'get-laporan') {
+      const overheadData = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM("perMonth"), 0) as total
+        FROM "Asset"
+        WHERE status != 'Rusak'
+      `;
+
+      const defaultOverhead = Number(overheadData[0]?.total) || 0;
+
+      const laporan = await prisma.laporanBulanan.findMany({
+        orderBy: { bulan: 'asc' },
+      });
+
+      const formattedData = laporan.map(item => ({
+        id: item.id,
+        bulan: item.bulan,
+        bulanStr: `${item.bulan.getFullYear()}-${String(item.bulan.getMonth() + 1).padStart(2, '0')}`,
+        qtyProduksi: item.qtyProduksi,
+        costPerPortion: item.costPerPortion,
+        jumlahCost: item.jumlahCost,
+        overhead: item.overhead,
+        gaji: item.gaji,
+        labaKotor: item.labaKotor,
+        profit: item.profit,
+        defaultOverhead: defaultOverhead,
+        isOverridden: item.overhead !== defaultOverhead,
+      }));
+
+      return NextResponse.json({
+        status: '✅ Berhasil!',
+        data: formattedData,
+        metadata: {
+          defaultOverhead,
+          total: laporan.length,
+        },
+      });
+    }
+
+    // ========== Ambil semua asset (default) ==========
     const assets = await prisma.asset.findMany({
       orderBy: { createdAt: 'desc' },
     });
@@ -91,7 +181,7 @@ export async function GET() {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching assets:', error);
+    console.error('Error fetching data:', error);
     return NextResponse.json({
       status: '❌ GAGAL',
       error: error.message,
@@ -116,9 +206,7 @@ export async function POST(request: Request) {
 
     const total = Number(quantity) * Number(price);
 
-    // ✅ TRANSACTION: Create asset + update laporan
     await prisma.$transaction(async (tx) => {
-      // 1. Create asset
       await tx.asset.create({
         data: {
           name,
@@ -131,7 +219,6 @@ export async function POST(request: Request) {
         },
       });
 
-      // 2. Update semua laporan dengan overhead baru
       await updateAllLaporanOverhead();
     });
 
@@ -163,14 +250,11 @@ export async function DELETE(request: Request) {
       }, { status: 400 });
     }
 
-    // ✅ TRANSACTION: Delete asset + update laporan
     await prisma.$transaction(async (tx) => {
-      // 1. Delete asset
       await tx.asset.delete({
         where: { id },
       });
 
-      // 2. Update semua laporan dengan overhead baru
       await updateAllLaporanOverhead();
     });
 
@@ -188,11 +272,94 @@ export async function DELETE(request: Request) {
 }
 
 // ============================================
-// PATCH: Update status asset
+// PATCH: Update status asset ATAU Update Laporan per Tahun ATAU Override Overhead
 // ============================================
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
     const body = await request.json();
+
+    // ========== Jika action = 'update-laporan' ==========
+    if (action === 'update-laporan') {
+      const { tahun } = body;
+
+      if (!tahun) {
+        return NextResponse.json({
+          status: '❌ GAGAL',
+          error: 'Parameter tahun wajib diisi',
+        }, { status: 400 });
+      }
+
+      const result = await updateLaporanByYear(tahun);
+
+      if (!result.success) {
+        return NextResponse.json({
+          status: '❌ GAGAL',
+          error: result.message,
+        }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        status: '✅ Berhasil!',
+        message: result.message,
+        metadata: {
+          updated: result.updated,
+          defaultOverhead: result.defaultOverhead,
+          tahun,
+        },
+      });
+    }
+
+    // ========== Jika action = 'override-overhead' ==========
+    if (action === 'override-overhead') {
+      const { bulan, overhead } = body;
+
+      if (!bulan) {
+        return NextResponse.json({
+          status: '❌ GAGAL',
+          error: 'Bulan wajib diisi (format: YYYY-MM)',
+        }, { status: 400 });
+      }
+
+      const [year, month] = bulan.split('-').map(Number);
+      const bulanDate = new Date(Date.UTC(year, month - 1, 1));
+
+      const existing = await prisma.laporanBulanan.findFirst({
+        where: {
+          bulan: {
+            equals: bulanDate,
+          },
+        },
+      });
+
+      if (!existing) {
+        return NextResponse.json({
+          status: '❌ GAGAL',
+          error: `Laporan untuk ${bulan} tidak ditemukan`,
+        }, { status: 404 });
+      }
+
+      const overheadNum = Number(overhead) || 0;
+      const newProfit = existing.labaKotor - existing.gaji - overheadNum;
+
+      const updated = await prisma.laporanBulanan.update({
+        where: { id: existing.id },
+        data: {
+          overhead: overheadNum,
+          profit: newProfit,
+          updatedAt: new Date(),
+        },
+      });
+
+      return NextResponse.json({
+        status: '✅ Berhasil!',
+        message: `Overhead untuk ${bulan} diupdate menjadi ${overheadNum}`,
+        data: updated,
+      });
+    }
+
+    // ========== Jika update status asset ==========
     const { id, status } = body;
 
     if (!id || !status) {
@@ -202,7 +369,6 @@ export async function PATCH(request: Request) {
       }, { status: 400 });
     }
 
-    // ✅ TRANSACTION: Update asset + update laporan
     await prisma.$transaction(async (tx) => {
       await tx.asset.update({
         where: { id },
