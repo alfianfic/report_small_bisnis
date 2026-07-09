@@ -134,14 +134,14 @@ async function updateStokProdukDariBahanBaku() {
 }
 
 // ============================================
-// DELETE: Hapus pembelian (Bahan Baku atau Reguler)
+// DELETE
 // ============================================
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  context: any
 ) {
   try {
-    const { id } = await params;
+    const { id } = context.params;
 
     if (!id) {
       return NextResponse.json({
@@ -201,7 +201,7 @@ export async function DELETE(
 
       return NextResponse.json({
         status: '✅ Berhasil!',
-        message: 'Data bahan baku berhasil dihapus',
+        message: 'Data bahan baku berhasil dihapus, stok produk & laporan diupdate',
       });
     }
 
@@ -221,16 +221,17 @@ export async function DELETE(
       const item = pembelianReguler[0];
       const tanggalObj = item.tanggal;
 
-      // Delete dari Pembelian (Reguler)
+      // ✅ Delete dari Pembelian (Reguler)
       await prisma.$executeRaw`
         DELETE FROM "Pembelian" WHERE id = ${id}
       `;
 
+      // ✅ Update laporan bulanan (HANYA jumlahCost)
       await updateLaporanBulananCost(tanggalObj);
 
       return NextResponse.json({
         status: '✅ Berhasil!',
-        message: 'Data reguler berhasil dihapus',
+        message: 'Data reguler berhasil dihapus, laporan diupdate',
       });
     }
 
