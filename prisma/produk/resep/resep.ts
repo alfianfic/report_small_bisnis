@@ -36,17 +36,17 @@ const produkResepData: ProdukResep[] = [
     resep: [
       { bahanBakuNama: 'Ajinomoto', qty: 1.04 }, // 0.00104 kg = 1.04 g
       { bahanBakuNama: 'Asem', qty: 0.08 }, // 0.00008 kg = 0.08 g
-      { bahanBakuNama: 'Ayam', qty: 100 }, // 0.1 kg = 100 g
+      { bahanBakuNama: 'Ayam', qty: 200 }, // 0.2 kg = 200 g
       { bahanBakuNama: 'Bawang Merah', qty: 4.4 }, // 0.0044 kg = 4.4 g
       { bahanBakuNama: 'Bawang Putih', qty: 7.4 }, // 0.0074 kg = 7.4 g
       { bahanBakuNama: 'Cabai Merah', qty: 10 }, // 0.01 kg = 10 g
       { bahanBakuNama: 'Cabai Rawit', qty: 3 }, // 0.003 kg = 3 g
       { bahanBakuNama: 'Daun Bawang', qty: 1 }, // 0.001 kg = 1 g
-      { bahanBakuNama: 'Daun Salam', qty: 1.4 }, // 0.14 x 10 = 1.4 lbr
-      { bahanBakuNama: 'Garam', qty: 108 }, // 0.108 kg = 108 g
+      { bahanBakuNama: 'Daun Salam', qty: 0.14 }, // 0.14 x 10 = 1.4 lbr
+      { bahanBakuNama: 'Garam', qty: 0.108 }, // 0.108 kg = 108 g
       { bahanBakuNama: 'Gula Merah', qty: 16.4 }, // 0.0164 kg = 16.4 g
       { bahanBakuNama: 'Gula Putih', qty: 4.144 }, // 0.004144 kg = 4.144 g
-      { bahanBakuNama: 'Kelapa', qty: 88 }, // 0.088 kg = 88 g
+      { bahanBakuNama: 'Kelapa', qty: 0.088 }, // 0.088 kg = 88 g
       { bahanBakuNama: 'Kemiri', qty: 3.8 }, // 0.0038 kg = 3.8 g
       { bahanBakuNama: 'Kentang', qty: 40 }, // 0.04 kg = 40 g
       { bahanBakuNama: 'Ketumbar', qty: 0.08 }, // 0.00008 kg = 0.08 g
@@ -55,11 +55,11 @@ const produkResepData: ProdukResep[] = [
       { bahanBakuNama: 'Kunyit', qty: 0.268 }, // 0.000268 kg = 0.268 g
       { bahanBakuNama: 'Lada', qty: 0.144 }, // 0.000144 kg = 0.144 g
       { bahanBakuNama: 'Lengkuas', qty: 1.056 }, // 0.001056 kg = 1.056 g
-      { bahanBakuNama: 'Mie Sealon', qty: 12 }, // 0.012 kg = 12 g
+      { bahanBakuNama: 'Mie Sealon', qty: 0.012 }, // 0.012 kg = 12 g
       { bahanBakuNama: 'Nangka Muda', qty: 40 }, // 0.04 kg = 40 g
       { bahanBakuNama: 'Nasi', qty: 80 }, // 0.08 kg = 80 g
-      { bahanBakuNama: 'Royco', qty: 68 }, // 0.068 kg = 68 g
-      { bahanBakuNama: 'Tahu', qty: 240 }, // 0.24 kg = 240 g
+      { bahanBakuNama: 'Royco', qty: 0.068 }, // 0.068 kg = 68 g
+      { bahanBakuNama: 'Tahu', qty: 0.240 }, // 0.24 kg = 240 g
       { bahanBakuNama: 'Telur', qty: 25 }, // 0.025 kg = 25 g
       { bahanBakuNama: 'Terasi', qty: 0.8 }, // 0.0008 kg = 0.8 g
       { bahanBakuNama: 'Tomat', qty: 8 }, // 0.008 kg = 8 g
@@ -73,14 +73,14 @@ const produkResepData: ProdukResep[] = [
     hargaJual: 23000,
     targetStok: 100,
     resep: [
-      { bahanBakuNama: 'Ayam', qty: 250 }, // 0.25 kg = 250 g
+      { bahanBakuNama: 'Ayam', qty: 500 }, // 0.25 kg = 250 g
       { bahanBakuNama: 'Cabai Merah', qty: 50 }, // 0.05 kg = 50 g
       { bahanBakuNama: 'Cabai Rawit', qty: 5 }, // 0.005 kg = 5 g
       { bahanBakuNama: 'Bawang Putih', qty: 10 }, // 0.01 kg = 10 g
       { bahanBakuNama: 'Kemiri', qty: 10 }, // 0.01 kg = 10 g
-      { bahanBakuNama: 'Garam', qty: 200 }, // 0.2 kg = 200 g
+      { bahanBakuNama: 'Garam', qty: 0.2 }, // 0.2 kg = 200 g
       { bahanBakuNama: 'Ajinomoto', qty: 2.5 }, // 0.0025 kg = 2.5 g
-      { bahanBakuNama: 'Royco', qty: 100 }, // 0.1 kg = 100 g
+      { bahanBakuNama: 'Royco', qty: 0.1 }, // 0.1 kg = 100 g
       { bahanBakuNama: 'Gula Putih', qty: 10 }, // 0.01 kg = 10 g
     ]
   },
@@ -91,15 +91,15 @@ const produkResepData: ProdukResep[] = [
     hargaJual: 23000,
     targetStok: 100,
     resep: [
-      { bahanBakuNama: 'Ayam', qty: 250 }, // 0.25 kg = 250 g
+      { bahanBakuNama: 'Ayam', qty: 500 }, // 0.25 kg = 250 g
       { bahanBakuNama: 'Bawang Merah', qty: 10 }, // 0.01 kg = 10 g
       { bahanBakuNama: 'Bawang Putih', qty: 10 }, // 0.01 kg = 10 g
       { bahanBakuNama: 'Cabai Rawit', qty: 5 }, // 0.005 kg = 5 g
-      { bahanBakuNama: 'Daun Salam', qty: 3.5 }, // 0.35 x 10 = 3.5 lbr
+      { bahanBakuNama: 'Daun Salam', qty: 0.35 }, // 0.35 x 10 = 3.5 lbr
       { bahanBakuNama: 'Lengkuas', qty: 3.3 }, // 0.0033 kg = 3.3 g
-      { bahanBakuNama: 'Garam', qty: 100 }, // 0.1 kg = 100 g
+      { bahanBakuNama: 'Garam', qty: 0.1 }, // 0.1 kg = 100 g
       { bahanBakuNama: 'Gula Putih', qty: 10 }, // 0.01 kg = 10 g
-      { bahanBakuNama: 'Royco', qty: 100 }, // 0.1 kg = 100 g
+      { bahanBakuNama: 'Royco', qty: 0.1 }, // 0.1 kg = 100 g
       { bahanBakuNama: 'Ajinomoto', qty: 2.5 }, // 0.0025 kg = 2.5 g
       { bahanBakuNama: 'Kecap', qty: 12.5 }, // 12.5 ml
     ]
