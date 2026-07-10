@@ -85,7 +85,8 @@ export default function RootLayout({
               <div>
 
                 <h1 className="text-2xl font-bold text-amber-800">
-                  🍽️ Gudeg Bu Ucik
+                  <img src="/Gudeg.png" alt="Logo" className="w-10 h-10 inline-block mr-2" />
+                  Gudeg Bu Ucik
                 </h1>
 
                 <p className="text-xs text-amber-600/70 mt-1">
