@@ -50,6 +50,12 @@ const menuItems = [
     label: 'Penggajian',
     icon: '👨‍💼',
   },
+  {
+    id: 'costing',
+    href: '/manage/targetcosting',  // ✅ Perbaiki: dari /manage/targetcosting ke /manage/costing
+    label: 'Target Costing',
+    icon: '🎯',  // ✅ Perbaiki: dari 👨‍💼 ke 🎯
+  },
 ];
 
 export default function RootLayout({

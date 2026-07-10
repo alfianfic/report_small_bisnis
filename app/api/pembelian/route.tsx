@@ -4,15 +4,63 @@ import { prisma } from '@/app/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
 
 // ============================================
+// HELPER: Update HPP Semua Produk dari Bahan Baku
+// ============================================
+async function updateAllHPP() {
+  try {
+    // Ambil semua produk dengan resepnya
+    const produkList = await prisma.produk.findMany({
+      include: {
+        bahanBaku: {
+          include: {
+            bahanBaku: true,
+          },
+        },
+      },
+    });
+
+    let updatedCount = 0;
+
+    for (const produk of produkList) {
+      if (produk.bahanBaku.length === 0) {
+        continue;
+      }
+
+      // Hitung HPP = Σ (harga bahan baku × qty per produk)
+      let totalHPP = 0;
+      for (const item of produk.bahanBaku) {
+        const hargaBahan = Number(item.bahanBaku.harga);
+        const qtyPerProduk = Number(item.qty);
+        totalHPP += Math.round(hargaBahan * qtyPerProduk);
+      }
+
+      // Update HPP produk
+      await prisma.produk.update({
+        where: { id: produk.id },
+        data: { hpp: totalHPP },
+      });
+
+      console.log(`📦 Produk ${produk.nama}: HPP = ${totalHPP}`);
+      updatedCount++;
+    }
+
+    console.log(`✅ HPP ${updatedCount} produk diupdate`);
+    return { success: true, updated: updatedCount };
+  } catch (error) {
+    console.error('❌ Error updating HPP produk:', error);
+    throw error;
+  }
+}
+
+// ============================================
 // HELPER: Recalculate Stok Bahan Baku dari Transaksi
 // ============================================
 async function recalculateStokBahanBaku() {
   try {
-    // Ambil semua bahan baku
     const bahanBakuList = await prisma.bahanBaku.findMany();
 
     for (const bahan of bahanBakuList) {
-      // 1. Total pembelian bahan baku
+      // Total pembelian bahan baku
       const pembelian = await prisma.$queryRaw<{ total: number }[]>`
         SELECT COALESCE(SUM(qty), 0) as total
         FROM "PembelianBahanBaku"
@@ -20,8 +68,15 @@ async function recalculateStokBahanBaku() {
       `;
       const totalPembelian = Number(pembelian[0]?.total) || 0;
 
-      // 2. Total penggunaan bahan baku (dari penjualan produk)
-      // Ambil semua produk yang menggunakan bahan baku ini
+      // Total harga pembelian (untuk menghitung harga rata-rata)
+      const totalBiaya = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(total), 0) as total
+        FROM "PembelianBahanBaku"
+        WHERE "bahanBakuId" = ${bahan.id}
+      `;
+      const totalBiayaPembelian = Number(totalBiaya[0]?.total) || 0;
+
+      // Total penggunaan bahan baku (dari penjualan produk)
       const produkResep = await prisma.produkBahanBaku.findMany({
         where: { bahanBakuId: bahan.id },
         select: {
@@ -32,27 +87,32 @@ async function recalculateStokBahanBaku() {
 
       let totalPenggunaan = 0;
       for (const resep of produkResep) {
-        // Total penjualan produk tersebut
         const penjualan = await prisma.$queryRaw<{ total: number }[]>`
           SELECT COALESCE(SUM(qty), 0) as total
           FROM "Penjualan"
           WHERE "produkId" = ${resep.produkId}
         `;
         const totalPenjualanProduk = Number(penjualan[0]?.total) || 0;
-
-        // Bahan baku yang terpakai = total penjualan produk × qty per produk
         totalPenggunaan += totalPenjualanProduk * Number(resep.qty);
       }
 
-      // 3. Stok = Total Pembelian - Total Penggunaan
-      const stokBaru = Math.max(0, totalPembelian - totalPenggunaan); // Minimal 0
+      // Stok = Total Pembelian - Total Penggunaan
+      const stokBaru = Math.max(0, totalPembelian - totalPenggunaan);
+
+      // Harga rata-rata = total biaya / total pembelian (jika ada)
+      const hargaRataRata = totalPembelian > 0 
+        ? Math.round(totalBiayaPembelian / totalPembelian) 
+        : 0;
 
       await prisma.bahanBaku.update({
         where: { id: bahan.id },
-        data: { stok: stokBaru },
+        data: { 
+          stok: stokBaru,
+          harga: hargaRataRata, // ✅ Update harga rata-rata
+        },
       });
 
-      console.log(`📦 Bahan ${bahan.nama}: stok = ${stokBaru} (Pembelian: ${totalPembelian}, Penggunaan: ${totalPenggunaan})`);
+      console.log(`📦 Bahan ${bahan.nama}: stok = ${stokBaru}, harga = ${hargaRataRata}`);
     }
 
     return { success: true };
@@ -107,15 +167,12 @@ async function recalculateStokProduk() {
       `;
       const totalPenjualan = Number(penjualan[0]?.total) || 0;
 
-      // Stok produk = (bisa dibuat dari bahan baku) - (total penjualan)
       const stokAkhir = Math.max(0, stokBaru - totalPenjualan);
 
       await prisma.produk.update({
         where: { id: produk.id },
         data: { stok: stokAkhir },
       });
-
-      console.log(`📦 Produk ${produk.nama}: stok = ${stokAkhir} (bisa dibuat: ${stokBaru}, terjual: ${totalPenjualan})`);
     }
 
     return { success: true };
@@ -341,19 +398,29 @@ export async function POST(request: Request) {
           `;
         });
 
-        // ✅ Recalculate semua stok dari awal (lebih aman)
+        // ✅ 1. Recalculate stok bahan baku & harga rata-rata
         await recalculateStokBahanBaku();
+
+        // ✅ 2. Update HPP semua produk
+        await updateAllHPP();
+
+        // ✅ 3. Recalculate stok produk
         await recalculateStokProduk();
 
-        // ✅ Update laporan
+        // ✅ 4. Update laporan
         await updateLaporanBulananCost(tanggalObj);
 
         return NextResponse.json({
           status: '✅ Berhasil!',
-          message: 'Pembelian bahan baku berhasil, stok & laporan diupdate',
+          message: 'Pembelian bahan baku berhasil, stok, HPP, & laporan diupdate',
         });
       } catch (error: any) {
-        // ...
+        console.error('❌ Error processing bahan baku:', error);
+        return NextResponse.json({
+          status: '❌ GAGAL',
+          error: 'Gagal memproses pembelian bahan baku',
+          detail: error.message,
+        }, { status: 500 });
       }
     }
     // Pembelian reguler
@@ -382,11 +449,20 @@ export async function POST(request: Request) {
           message: 'Pembelian berhasil ditambahkan, laporan diupdate',
         });
       } catch (error: any) {
-        // ...
+        console.error('❌ Error creating regular purchase:', error);
+        return NextResponse.json({
+          status: '❌ GAGAL',
+          error: 'Gagal menyimpan pembelian reguler',
+          detail: error.message,
+        }, { status: 500 });
       }
     }
   } catch (error: any) {
-    // ...
+    console.error('❌ Error creating pembelian:', error);
+    return NextResponse.json({
+      status: '❌ GAGAL',
+      error: error.message || 'Terjadi kesalahan saat menyimpan data',
+    }, { status: 500 });
   }
 }
 
@@ -431,8 +507,13 @@ export async function DELETE(request: Request) {
         DELETE FROM "PembelianBahanBaku" WHERE id = ${id}
       `;
 
-      // ✅ Recalculate semua stok dari awal
+      // ✅ 1. Recalculate stok bahan baku & harga rata-rata
       await recalculateStokBahanBaku();
+
+      // ✅ 2. Update HPP semua produk
+      await updateAllHPP();
+
+      // ✅ 3. Recalculate stok produk
       await recalculateStokProduk();
     } else {
       const item = pembelianReguler[0];
@@ -448,7 +529,7 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({
       status: '✅ Berhasil!',
-      message: 'Data berhasil dihapus, stok & laporan diupdate',
+      message: 'Data berhasil dihapus, stok, HPP, & laporan diupdate',
     });
   } catch (error: any) {
     console.error('❌ Error deleting pembelian:', error);

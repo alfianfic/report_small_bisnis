@@ -187,3 +187,32 @@ model Pembelian {
   @@index([tanggal])
   @@index([nama])
 }
+
+// ========================================
+// 10. TARGET COSTING (BERDIRI SENDIRI)
+// ========================================
+model TargetCosting {
+  id            String   @id @default(cuid())
+  produkId      String
+  bulan         DateTime
+  
+  // Target komponen (hasil perhitungan)
+  targetBahanBaku      Int @default(0)
+  targetOverhead       Int @default(0)
+  targetGaji           Int @default(0)
+  
+  // Persentase (input user) - per produk
+  persentaseOverhead   Float @default(0)  // Contoh: 70
+  persentaseGaji       Float @default(0)  // Contoh: 15
+  
+  // Harga bahan baku yang dipilih user (JSON)
+  // { "bahanBakuId": harga_baru, ... }
+  hargaBahanBaku       Json?  @default("{}")
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([produkId, bulan])
+  @@index([produkId])
+  @@index([bulan])
+}
