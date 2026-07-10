@@ -12,10 +12,10 @@ async function updateLaporanBulananGaji(tanggal: Date) {
     const year = tanggal.getUTCFullYear();
     const month = tanggal.getUTCMonth() + 1;
     const bulanStr = `${year}-${String(month).padStart(2, '0')}`;
-    
+
     // ✅ Buat tanggal bulan dalam UTC
     const bulanDate = new Date(Date.UTC(year, month - 1, 1));
-    
+
     console.log(`📊 Updating gaji untuk ${bulanStr}`);
 
     // ========== 1. Ambil total gaji di bulan tersebut ==========
@@ -37,19 +37,18 @@ async function updateLaporanBulananGaji(tanggal: Date) {
     });
 
     if (existing) {
-      // ✅ UPDATE: HANYA gaji
-      // ❌ Kolom lain (qtyProduksi, jumlahCost, labaKotor, overhead, profit) TIDAK diubah
+      // ✅ Hitung ulang profit
+      const profitBaru = existing.labaKotor - existing.jumlahCost - totalGaji - existing.overhead;
+
       await prisma.laporanBulanan.update({
         where: { id: existing.id },
         data: {
           gaji: totalGaji,
+          profit: profitBaru,  // ✅ Update profit juga
           updatedAt: new Date(),
         },
       });
-      
-      console.log(`✅ Laporan ${bulanStr} diupdate (gaji = ${totalGaji})`);
     } else {
-      // Buat laporan baru dengan data minimal (gaji saja)
       await prisma.laporanBulanan.create({
         data: {
           bulan: bulanDate,
@@ -62,8 +61,6 @@ async function updateLaporanBulananGaji(tanggal: Date) {
           profit: 0,
         },
       });
-      
-      console.log(`✅ Laporan ${bulanStr} dibuat (gaji = ${totalGaji})`);
     }
 
     return { success: true, totalGaji };

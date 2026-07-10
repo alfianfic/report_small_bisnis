@@ -40,9 +40,8 @@ async function updateLaporanByYear(tahun: string) {
     let updatedCount = 0;
 
     for (const laporan of laporanList) {
-      const labaKotor = laporan.labaKotor;
-      const gaji = laporan.gaji;
-      const profitBaru = labaKotor - gaji - defaultOverhead;
+      // ✅ Hitung profit dengan semua komponen
+      const profitBaru = laporan.labaKotor - laporan.jumlahCost - laporan.gaji - defaultOverhead;
 
       await prisma.laporanBulanan.update({
         where: { id: laporan.id },
@@ -54,8 +53,6 @@ async function updateLaporanByYear(tahun: string) {
       });
       updatedCount++;
     }
-
-    console.log(`✅ Overhead ${updatedCount} laporan tahun ${tahun} diupdate ke ${defaultOverhead}`);
 
     return {
       success: true,
@@ -88,9 +85,8 @@ async function updateAllLaporanOverhead() {
     });
 
     for (const laporan of laporanList) {
-      const labaKotor = laporan.labaKotor;
-      const gaji = laporan.gaji;
-      const profitBaru = labaKotor - gaji - defaultOverhead;
+      // ✅ Hitung profit dengan semua komponen
+      const profitBaru = laporan.labaKotor - laporan.jumlahCost - laporan.gaji - defaultOverhead;
 
       await prisma.laporanBulanan.update({
         where: { id: laporan.id },

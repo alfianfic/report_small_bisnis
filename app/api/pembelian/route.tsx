@@ -51,19 +51,18 @@ async function updateLaporanBulananCost(tanggal: Date) {
 
     if (existing) {
       // ✅ UPDATE: HANYA jumlahCost & costPerPortion
-      // ❌ Kolom lain (qtyProduksi, labaKotor, profit, overhead, gaji) TIDAK diubah
+      const profitBaru = existing.labaKotor - totalCost - existing.gaji - existing.overhead;
+
       await prisma.laporanBulanan.update({
         where: { id: existing.id },
         data: {
           jumlahCost: totalCost,
           costPerPortion: costPerPortion,
+          profit: profitBaru,  // ✅ Update profit juga
           updatedAt: new Date(),
         },
       });
-
-      console.log(`✅ Laporan ${bulanStr} diupdate (jumlahCost = ${totalCost})`);
     } else {
-      // Buat laporan baru dengan data minimal (jumlahCost saja)
       await prisma.laporanBulanan.create({
         data: {
           bulan: bulanDate,
@@ -73,11 +72,9 @@ async function updateLaporanBulananCost(tanggal: Date) {
           overhead: 0,
           gaji: 0,
           labaKotor: 0,
-          profit: 0,
+          profit: 0,  // ✅ profit = 0 (belum ada pendapatan)
         },
       });
-
-      console.log(`✅ Laporan ${bulanStr} dibuat (jumlahCost = ${totalCost})`);
     }
 
     return { success: true, totalCost };
