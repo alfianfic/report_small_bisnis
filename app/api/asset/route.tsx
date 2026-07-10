@@ -40,7 +40,6 @@ async function updateLaporanByYear(tahun: string) {
     let updatedCount = 0;
 
     for (const laporan of laporanList) {
-      // ✅ Hitung profit dengan semua komponen
       const profitBaru = laporan.labaKotor - laporan.jumlahCost - laporan.gaji - defaultOverhead;
 
       await prisma.laporanBulanan.update({
@@ -54,55 +53,13 @@ async function updateLaporanByYear(tahun: string) {
       updatedCount++;
     }
 
+    console.log(`✅ Overhead ${updatedCount} laporan tahun ${tahun} diupdate ke ${defaultOverhead}`);
+
     return {
       success: true,
       message: `Berhasil update ${updatedCount} laporan tahun ${tahun}`,
       updated: updatedCount,
       defaultOverhead,
-    };
-  } catch (error) {
-    console.error('❌ Error updating laporan overhead:', error);
-    throw error;
-  }
-}
-
-// ============================================
-// HELPER: Update Overhead di Semua Laporan Bulanan
-// ============================================
-async function updateAllLaporanOverhead() {
-  try {
-    const overheadData = await prisma.$queryRaw<{ total: number }[]>`
-      SELECT COALESCE(SUM("perMonth"), 0) as total
-      FROM "Asset"
-      WHERE status != 'Rusak'
-    `;
-
-    const defaultOverhead = Number(overheadData[0]?.total) || 0;
-    console.log(`📊 Default overhead: ${defaultOverhead}`);
-
-    const laporanList = await prisma.laporanBulanan.findMany({
-      orderBy: { bulan: 'asc' },
-    });
-
-    for (const laporan of laporanList) {
-      // ✅ Hitung profit dengan semua komponen
-      const profitBaru = laporan.labaKotor - laporan.jumlahCost - laporan.gaji - defaultOverhead;
-
-      await prisma.laporanBulanan.update({
-        where: { id: laporan.id },
-        data: {
-          overhead: defaultOverhead,
-          profit: profitBaru,
-          updatedAt: new Date(),
-        },
-      });
-    }
-
-    console.log(`✅ Overhead semua laporan diupdate ke ${defaultOverhead}`);
-    return {
-      success: true,
-      defaultOverhead,
-      updated: laporanList.length
     };
   } catch (error) {
     console.error('❌ Error updating laporan overhead:', error);
@@ -186,7 +143,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ============================================
-// POST: Tambah asset baru
+// POST: Tambah asset baru (TIDAK update laporan)
 // ============================================
 export async function POST(request: Request) {
   try {
@@ -202,25 +159,24 @@ export async function POST(request: Request) {
 
     const total = Number(quantity) * Number(price);
 
-    await prisma.$transaction(async (tx) => {
-      await tx.asset.create({
-        data: {
-          name,
-          category,
-          quantity: Number(quantity),
-          price: Number(price),
-          total,
-          perMonth: Number(perMonth),
-          status: status || 'Baik',
-        },
-      });
-
-      await updateAllLaporanOverhead();
+    await prisma.asset.create({
+      data: {
+        name,
+        category,
+        quantity: Number(quantity),
+        price: Number(price),
+        total,
+        perMonth: Number(perMonth),
+        status: status || 'Baik',
+      },
     });
+
+    // ❌ TIDAK update laporan otomatis
+    // User harus klik tombol "Update dari Asset" untuk update laporan
 
     return NextResponse.json({
       status: '✅ Berhasil!',
-      message: 'Asset berhasil ditambahkan, laporan bulanan diupdate',
+      message: 'Asset berhasil ditambahkan. Klik "Update dari Asset" untuk update laporan.',
     });
   } catch (error: any) {
     console.error('Error creating asset:', error);
@@ -232,7 +188,7 @@ export async function POST(request: Request) {
 }
 
 // ============================================
-// DELETE: Hapus asset
+// DELETE: Hapus asset (TIDAK update laporan)
 // ============================================
 export async function DELETE(request: Request) {
   try {
@@ -246,17 +202,16 @@ export async function DELETE(request: Request) {
       }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.asset.delete({
-        where: { id },
-      });
-
-      await updateAllLaporanOverhead();
+    await prisma.asset.delete({
+      where: { id },
     });
+
+    // ❌ TIDAK update laporan otomatis
+    // User harus klik tombol "Update dari Asset" untuk update laporan
 
     return NextResponse.json({
       status: '✅ Berhasil!',
-      message: 'Asset berhasil dihapus, laporan bulanan diupdate',
+      message: 'Asset berhasil dihapus. Klik "Update dari Asset" untuk update laporan.',
     });
   } catch (error: any) {
     console.error('Error deleting asset:', error);
@@ -355,7 +310,7 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // ========== Jika update status asset ==========
+    // ========== Jika update status asset (TIDAK update laporan) ==========
     const { id, status } = body;
 
     if (!id || !status) {
@@ -365,18 +320,17 @@ export async function PATCH(request: NextRequest) {
       }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.asset.update({
-        where: { id },
-        data: { status },
-      });
-
-      await updateAllLaporanOverhead();
+    await prisma.asset.update({
+      where: { id },
+      data: { status },
     });
+
+    // ❌ TIDAK update laporan otomatis
+    // User harus klik tombol "Update dari Asset" untuk update laporan
 
     return NextResponse.json({
       status: '✅ Berhasil!',
-      message: 'Status asset berhasil diupdate, laporan bulanan diupdate',
+      message: 'Status asset berhasil diupdate. Klik "Update dari Asset" untuk update laporan.',
     });
   } catch (error: any) {
     console.error('Error updating asset:', error);
