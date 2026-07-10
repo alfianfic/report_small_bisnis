@@ -41,7 +41,7 @@ const menuItems = [
   {
     id: 'asset',
     href: '/manage/asset',
-    label: 'Aset',
+    label: 'Overhead',
     icon: '🏦',
   },
   {

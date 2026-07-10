@@ -70,96 +70,96 @@ const laporanDataRaw = [
   { 
     bulanStr: 'Januari 2025', 
     qtyProduksi: 8090 + 760 + 760, 
-    costPerPortion: Math.round((89890190 + 12448192 + 10773156) / (8090 + 760 + 760)),
-    jumlahCost: 89890190 + 12448192 + 10773156,
+    costPerPortion: ((89890190.48 + 12448192 + 10773076) / (8090 + 760 + 760)),
+    jumlahCost: 89890190 + 12448192 + 10773076,
     labaKotor: 129440000 + 17480000 + 17480000
   },
   // Februari 2025
   { 
     bulanStr: 'Februari 2025', 
     qtyProduksi: 6400 + 560 + 560,
-    costPerPortion: Math.round((71112141 + 9172352 + 7938115) / (6400 + 560 + 560)),
-    jumlahCost: 71112141 + 9172352 + 7938115,
+    costPerPortion: ((71112140.8 + 9172352 + 7938056) / (6400 + 560 + 560)),
+    jumlahCost: 71112140 + 9172352 + 7938056,
     labaKotor: 102400000 + 12880000 + 12880000
   },
   // Maret 2025
   { 
     bulanStr: 'Maret 2025', 
     qtyProduksi: 2950 + 300 + 280,
-    costPerPortion: Math.round((32778252 + 4913760 + 3969057) / (2950 + 300 + 280)),
-    jumlahCost: 32778252 + 4913760 + 3969057,
+    costPerPortion: ((32778252.4 + 4913760 + 3969028) / (2950 + 300 + 280)),
+    jumlahCost: 32778252 + 4913760 + 3969028,
     labaKotor: 47200000 + 6900000 + 6440000
   },
   // April 2025
   { 
     bulanStr: 'April 2025', 
     qtyProduksi: 6432 + 525 + 522,
-    costPerPortion: Math.round((71467702 + 8599080 + 7399457) / (6432 + 525 + 522)),
-    jumlahCost: 71467702 + 8599080 + 7399457,
+    costPerPortion: ((71467701.504 + 8599080 + 7399402.2) / (6432 + 525 + 522)),
+    jumlahCost: 71467701 + 8599080 + 7399402,
     labaKotor: 102912000 + 12075000 + 12006000
   },
   // Mei 2025
   { 
     bulanStr: 'Mei 2025', 
     qtyProduksi: 6620 + 572 + 526,
-    costPerPortion: Math.round((73556621 + 9368902 + 7456158) / (6620 + 572 + 526)),
-    jumlahCost: 73556621 + 9368902 + 7456158,
+    costPerPortion: ((73556620.64 + 9368902.4 + 7456102.6) / (6620 + 572 + 526)),
+    jumlahCost: 73556620 + 9368902 + 7456102,
     labaKotor: 105920000 + 13156000 + 12098000
   },
   // Juni 2025
   { 
     bulanStr: 'Juni 2025', 
     qtyProduksi: 7246 + 610 + 606,
-    costPerPortion: Math.round((80512277 + 9991312 + 8590174) / (7246 + 610 + 606)),
-    jumlahCost: 80512277 + 9991312 + 8590174,
+    costPerPortion: ((80512276.912 + 9991312 + 85901106) / (7246 + 610 + 606)),
+    jumlahCost: 80512276 + 9991312 + 8590110,
     labaKotor: 115936000 + 14030000 + 13938000
   },
   // Juli 2025
   { 
     bulanStr: 'Juli 2025', 
     qtyProduksi: 7860 + 740 + 720,
-    costPerPortion: Math.round((87334598 + 12120608 + 10206148) / (7860 + 740 + 720)),
-    jumlahCost: 87334598 + 12120608 + 10206148,
+    costPerPortion: ((87334597.92 + 12120608 + 10206072) / (7860 + 740 + 720)),
+    jumlahCost: 87334597 + 12120608 + 10206072,
     labaKotor: 125760000 + 17020000 + 16560000
   },
   // Agustus 2025
   { 
     bulanStr: 'Agustus 2025', 
     qtyProduksi: 6489 + 464 + 456,
-    costPerPortion: Math.round((72101044 + 7599949 + 6463894) / (6489 + 464 + 456)),
-    jumlahCost: 72101044 + 7599949 + 6463894,
+    costPerPortion: ((72101044.008 + 7599948.8 + 6463845.6) / (6489 + 464 + 456)),
+    jumlahCost: 72101044 + 7599948 + 6463845,
     labaKotor: 103824000 + 10672000 + 10488000
   },
   // September 2025
   { 
     bulanStr: 'September 2025', 
     qtyProduksi: 5700 + 380 + 380,
-    costPerPortion: Math.round((63334250 + 6224096 + 5386578) / (5700 + 380 + 380)),
-    jumlahCost: 63334250 + 6224096 + 5386578,
+    costPerPortion: ((63334250.4 + 6224096 + 5386538) / (5700 + 380 + 380)),
+    jumlahCost: 63334250 + 6224096 + 5386538,
     labaKotor: 91200000 + 8740000 + 8740000
   },
   // Oktober 2025
   { 
     bulanStr: 'Oktober 2025', 
     qtyProduksi: 8570 + 748 + 740,
-    costPerPortion: Math.round((95223601 + 12251642 + 10489652) / (8570 + 748 + 740)),
-    jumlahCost: 95223601 + 12251642 + 10489652,
+    costPerPortion: ((95223601.04 + 12251641.6 + 10489574) / (8570 + 748 + 740)),
+    jumlahCost: 95223601 + 12251641 + 10489574,
     labaKotor: 137120000 + 17204000 + 17020000
   },
   // November 2025
   { 
     bulanStr: 'November 2025', 
     qtyProduksi: 5950 + 420 + 428,
-    costPerPortion: Math.round((66112068 + 6879264 + 6066988) / (5950 + 420 + 428)),
-    jumlahCost: 66112068 + 6879264 + 6066988,
+    costPerPortion: ((66112068.4 + 6879264 + 6066942.8) / (5950 + 420 + 428)),
+    jumlahCost: 66112068 + 6879264 + 6066942,
     labaKotor: 95200000 + 9660000 + 9844000
   },
   // Desember 2025
   { 
     bulanStr: 'Desember 2025', 
     qtyProduksi: 7960 + 724 + 724,
-    costPerPortion: Math.round((88445725 + 11858541 + 10262849) / (7960 + 724 + 724)),
-    jumlahCost: 88445725 + 11858541 + 10262849,
+    costPerPortion: ((88445725.12 + 11858540.8 + 10262772.4) / (7960 + 724 + 724)),
+    jumlahCost: 88445725 + 11858540 + 10262772,
     labaKotor: 127360000 + 16652000 + 16652000
   },
 ];
