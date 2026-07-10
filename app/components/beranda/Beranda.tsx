@@ -213,7 +213,7 @@ export default function Beranda() {
   const totalGaji = filteredData.reduce((sum, d) => sum + (d.gaji || 0), 0);
   const totalBulan = filteredData.length;
 
-  // Data untuk grafik Laba Kotor vs Profit vs Cost
+  // Data untuk grafik Penjualan vs Profit vs Pembelian
   const chartData = filteredData.map((d) => ({
     bulan: d.bulan.trim(), 
     labaKotor: d.labaKotor || 0,
@@ -250,12 +250,12 @@ export default function Beranda() {
       {/* 5 Cards Summary */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-4 text-white">
-          <p className="text-sm opacity-80">Total Laba Kotor</p>
+          <p className="text-sm opacity-80">Total Penjualan</p>
           <p className="text-2xl font-bold">{formatRupiah(totalLabaKotor)}</p>
           <p className="text-xs opacity-70 mt-1">{totalBulan} bulan</p>
         </div>
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-4 text-white">
-          <p className="text-sm opacity-80">Total Cost</p>
+          <p className="text-sm opacity-80">Total Pembelian</p>
           <p className="text-2xl font-bold">{formatRupiah(totalCost)}</p>
           <p className="text-xs opacity-70 mt-1">{totalBulan} bulan</p>
         </div>
@@ -374,10 +374,10 @@ export default function Beranda() {
         </div>
       )}
 
-      {/* ===== GRAFIK LABA KOTOR VS PROFIT VS COST ===== */}
+      {/* ===== GRAFIK Penjualan VS PROFIT VS Pembelian ===== */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
         <h3 className="text-sm font-semibold text-gray-700 mb-4">
-          📊 Laba Kotor vs Profit vs Cost vs Overhead vs Gaji ({selectedYear})
+          📊 Penjualan vs Profit vs Pembelian vs Overhead vs Gaji ({selectedYear})
         </h3>
         {filteredData.length === 0 ? (
           <div className="flex items-center justify-center h-[300px] text-gray-400">
@@ -391,8 +391,8 @@ export default function Beranda() {
               <YAxis tick={{ fontSize: 11, fill: '#888' }} tickFormatter={(v) => `Rp${(v/1000000).toFixed(0)}M`} />
               <Tooltip formatter={(value: any) => formatRupiah(value)} />
               <Legend />
-              <Bar dataKey="labaKotor" fill="#10B981" name="Laba Kotor" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="cost" fill="#aa1b4b" name="Cost" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="labaKotor" fill="#10B981" name="Penjualan" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="cost" fill="#aa1b4b" name="Pembelian" radius={[4, 4, 0, 0]} />
               <Bar dataKey="overhead" fill="#EF4444" name="Overhead" radius={[4, 4, 0, 0]} />
               <Bar dataKey="gaji" fill="#EC4899" name="Gaji" radius={[4, 4, 0, 0]} />
               <Bar dataKey="profit" fill="#3B82F6" name="Profit" radius={[4, 4, 0, 0]} />
@@ -413,10 +413,10 @@ export default function Beranda() {
               <tr>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-400 uppercase">Bulan</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Qty Produksi</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Total Cost</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Total Penjualan</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Total Pembelian</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Overhead</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Gaji</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Laba Kotor</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-400 uppercase">Profit</th>
               </tr>
             </thead>
@@ -432,10 +432,10 @@ export default function Beranda() {
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="px-3 py-2 font-medium text-gray-800">{item.bulan.trim()}</td>
                     <td className="px-3 py-2 text-right text-gray-700">{item.qtyProduksi.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right text-green-600">{formatRupiah(item.labaKotor)}</td>
                     <td className="px-3 py-2 text-right text-gray-700">{formatRupiah(item.jumlahCost)}</td>
                     <td className="px-3 py-2 text-right text-orange-600">{formatRupiah(item.overhead)}</td>
                     <td className="px-3 py-2 text-right text-pink-600">{formatRupiah(item.gaji)}</td>
-                    <td className="px-3 py-2 text-right text-green-600">{formatRupiah(item.labaKotor)}</td>
                     <td className="px-3 py-2 text-right text-blue-600">{formatRupiah(item.profit)}</td>
                   </tr>
                 ))
