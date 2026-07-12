@@ -1,4 +1,4 @@
-// app/api/costing/route.ts
+// app/api/targetcosting/route.ts
 
 import { prisma } from '@/app/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const produkId = searchParams.get('produkId');
     const bulan = searchParams.get('bulan');
+    const periode = searchParams.get('periode') || 'tahunan'; // 'tahunan' atau 'bulanan'
 
     if (!produkId) {
       return NextResponse.json({
@@ -49,32 +50,113 @@ export async function GET(request: NextRequest) {
       }, { status: 404 });
     }
 
-    // ========== 2. Ambil total penjualan produk bulan ini ==========
-    const penjualan = await prisma.$queryRaw<{ total: number }[]>`
-      SELECT COALESCE(SUM(qty), 0) as total
-      FROM "Penjualan"
-      WHERE "produkId" = ${produkId}
-        AND DATE_TRUNC('month', "tanggal") = DATE_TRUNC('month', ${startDate}::timestamp)
-    `;
-    const qtyPenjualan = Number(penjualan[0]?.total) || 0;
+    // ========== 2. Tentukan periode ==========
+    const currentYear = startDate.getFullYear();
+    const yearStart = new Date(Date.UTC(currentYear, 0, 1));
+    const yearEnd = new Date(Date.UTC(currentYear, 11, 31, 23, 59, 59));
 
-    // ========== 3. Ambil total overhead bulan ini ==========
-    const overheadData = await prisma.$queryRaw<{ total: number }[]>`
-      SELECT COALESCE(SUM("perMonth"), 0) as total
-      FROM "Asset"
-      WHERE status != 'Rusak'
-    `;
-    const totalOverhead = Number(overheadData[0]?.total) || 0;
+    // ========== 3. Ambil data berdasarkan periode ==========
+    let qtyPenjualan = 0;
+    let totalOverhead = 0;
+    let totalGaji = 0;
+    let totalQtyAllProduk = 0;
+    let labelPeriode = '';
+    let detailPeriode = {};
 
-    // ========== 4. Ambil total gaji bulan ini ==========
-    const gajiData = await prisma.$queryRaw<{ total: number }[]>`
-      SELECT COALESCE(SUM(gaji), 0) as total
-      FROM "Penggajian"
-      WHERE DATE_TRUNC('month', "tanggal_penggajian") = DATE_TRUNC('month', ${startDate}::timestamp)
-    `;
-    const totalGaji = Number(gajiData[0]?.total) || 0;
+    if (periode === 'tahunan') {
+      // ---------- DATA TAHUNAN ----------
+      labelPeriode = 'Tahunan';
+      
+      // Total penjualan produk di tahun ini
+      const penjualan = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(qty), 0) as total
+        FROM "Penjualan"
+        WHERE "produkId" = ${produkId}
+          AND DATE_TRUNC('year', "tanggal") = DATE_TRUNC('year', ${yearStart}::timestamp)
+      `;
+      qtyPenjualan = Number(penjualan[0]?.total) || 0;
 
-    // ========== 5. Ambil target costing (jika ada) ==========
+      // Total overhead tahunan (perMonth * 12)
+      const overhead = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM("perMonth" * 12), 0) as total
+        FROM "Asset"
+        WHERE status != 'Rusak'
+      `;
+      totalOverhead = Number(overhead[0]?.total) || 0;
+
+      // Total gaji tahunan
+      const gaji = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(gaji), 0) as total
+        FROM "Penggajian"
+        WHERE DATE_TRUNC('year', "tanggal_penggajian") = DATE_TRUNC('year', ${yearStart}::timestamp)
+      `;
+      totalGaji = Number(gaji[0]?.total) || 0;
+
+      // Total qty semua produk di tahun yang sama
+      const totalQty = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(qty), 0) as total
+        FROM "Penjualan"
+        WHERE DATE_TRUNC('year', "tanggal") = DATE_TRUNC('year', ${yearStart}::timestamp)
+      `;
+      totalQtyAllProduk = Number(totalQty[0]?.total) || 0;
+
+      detailPeriode = {
+        periode: 'tahunan',
+        tahun: currentYear,
+        totalOverhead,
+        totalGaji,
+        totalQtyAllProduk,
+        qtyPenjualan,
+      };
+
+    } else {
+      // ---------- DATA BULANAN ----------
+      labelPeriode = 'Bulanan';
+      
+      // Total penjualan produk di bulan ini
+      const penjualan = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(qty), 0) as total
+        FROM "Penjualan"
+        WHERE "produkId" = ${produkId}
+          AND DATE_TRUNC('month', "tanggal") = DATE_TRUNC('month', ${startDate}::timestamp)
+      `;
+      qtyPenjualan = Number(penjualan[0]?.total) || 0;
+
+      // Total overhead bulanan
+      const overhead = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM("perMonth"), 0) as total
+        FROM "Asset"
+        WHERE status != 'Rusak'
+      `;
+      totalOverhead = Number(overhead[0]?.total) || 0;
+
+      // Total gaji bulanan
+      const gaji = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(gaji), 0) as total
+        FROM "Penggajian"
+        WHERE DATE_TRUNC('month', "tanggal_penggajian") = DATE_TRUNC('month', ${startDate}::timestamp)
+      `;
+      totalGaji = Number(gaji[0]?.total) || 0;
+
+      // Total qty semua produk di bulan yang sama
+      const totalQty = await prisma.$queryRaw<{ total: number }[]>`
+        SELECT COALESCE(SUM(qty), 0) as total
+        FROM "Penjualan"
+        WHERE DATE_TRUNC('month', "tanggal") = DATE_TRUNC('month', ${startDate}::timestamp)
+      `;
+      totalQtyAllProduk = Number(totalQty[0]?.total) || 0;
+
+      detailPeriode = {
+        periode: 'bulanan',
+        bulan: `${year}-${String(month).padStart(2, '0')}`,
+        totalOverhead,
+        totalGaji,
+        totalQtyAllProduk,
+        qtyPenjualan,
+      };
+    }
+
+    // ========== 4. Ambil target costing (jika ada) ==========
     const target = await prisma.targetCosting.findUnique({
       where: {
         produkId_bulan: {
@@ -84,8 +166,8 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // ========== 6. Format data bahan baku untuk dropdown ==========
-    const bahanBakuList = produk.bahanBaku.map((item) => {
+    // ========== 5. Format data bahan baku dari resep ==========
+    const resepBahanBaku = produk.bahanBaku.map((item) => {
       const defaultHarga = item.bahanBaku.harga;
       const customHarga = target?.hargaBahanBaku as any;
       const hargaDipilih = customHarga?.[item.bahanBakuId] || defaultHarga;
@@ -100,33 +182,57 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // ========== 7. Hitung target & realisasi ==========
+    // ========== 6. Hitung Target ==========
+    
     // Target Bahan Baku = Σ (hargaDipilih × qty)
-    const targetBahanBaku = bahanBakuList.reduce(
+    const targetBahanBaku = resepBahanBaku.reduce(
       (sum, item) => sum + item.hargaDipilih * item.qty,
       0
     );
 
-    // Default target overhead & gaji = dari sistem (jika belum ada target)
-    const defaultOverheadPerProduk = qtyPenjualan > 0 
-      ? Math.round((totalOverhead * 1) / qtyPenjualan) // Sementara 100%
-      : 0;
-    const defaultGajiPerProduk = qtyPenjualan > 0
-      ? Math.round((totalGaji * 1) / qtyPenjualan)
+    // Hitung persentase produk dari total qty
+    const persentaseProduk = totalQtyAllProduk > 0 
+      ? (qtyPenjualan / totalQtyAllProduk) * 100
       : 0;
 
-    const targetOverhead = target?.targetOverhead ?? defaultOverheadPerProduk;
-    const targetGaji = target?.targetGaji ?? defaultGajiPerProduk;
+    // Target Overhead & Gaji (per produk)
+    let targetOverhead = 0;
+    let targetGaji = 0;
 
-    // Realisasi
-    const realisasiBahanBaku = produk.hpp;
-    const realisasiOverhead = qtyPenjualan > 0
-      ? Math.round(totalOverhead / qtyPenjualan)
-      : 0;
-    const realisasiGaji = qtyPenjualan > 0
-      ? Math.round(totalGaji / qtyPenjualan)
-      : 0;
+    if (qtyPenjualan > 0 && totalQtyAllProduk > 0) {
+      const alokasiOverhead = totalOverhead * (qtyPenjualan / totalQtyAllProduk);
+      targetOverhead = Math.round(alokasiOverhead / qtyPenjualan);
+      
+      const alokasiGaji = totalGaji * (qtyPenjualan / totalQtyAllProduk);
+      targetGaji = Math.round(alokasiGaji / qtyPenjualan);
+    }
 
+    // Jika ada target custom, timpa dengan nilai dari database
+    if (target) {
+      if (qtyPenjualan > 0) {
+        targetOverhead = Math.round(target.targetOverhead / qtyPenjualan);
+        targetGaji = Math.round(target.targetGaji / qtyPenjualan);
+      }
+    }
+
+    // ========== 7. Hitung Realisasi (SAMA dengan target) ==========
+    
+    // Realisasi Bahan Baku = HPP produk
+    const realisasiBahanBaku = produk.hpp || 0;
+
+    // Realisasi Overhead & Gaji (per produk)
+    let realisasiOverhead = 0;
+    let realisasiGaji = 0;
+
+    if (qtyPenjualan > 0 && totalQtyAllProduk > 0) {
+      const alokasiOverhead = totalOverhead * (qtyPenjualan / totalQtyAllProduk);
+      realisasiOverhead = Math.round(alokasiOverhead / qtyPenjualan);
+      
+      const alokasiGaji = totalGaji * (qtyPenjualan / totalQtyAllProduk);
+      realisasiGaji = Math.round(alokasiGaji / qtyPenjualan);
+    }
+
+    // ========== 8. Return Response ==========
     return NextResponse.json({
       status: '✅ Berhasil!',
       data: {
@@ -136,10 +242,17 @@ export async function GET(request: NextRequest) {
           sku: produk.sku,
           hpp: produk.hpp,
         },
+        periode: {
+          type: periode,
+          label: labelPeriode,
+          ...detailPeriode,
+        },
         qtyPenjualan,
+        totalQtyAllProduk,
+        persentaseProduk: Math.round(persentaseProduk),
         totalOverhead,
         totalGaji,
-        bahanBaku: bahanBakuList,
+        bahanBaku: resepBahanBaku,
         target: {
           bahanBaku: targetBahanBaku,
           overhead: targetOverhead,
@@ -153,6 +266,14 @@ export async function GET(request: NextRequest) {
           total: realisasiBahanBaku + realisasiOverhead + realisasiGaji,
         },
         isOverridden: !!target,
+        // Data mentah untuk transparansi
+        rawData: {
+          totalOverhead,
+          totalGaji,
+          totalQtyAllProduk,
+          qtyPenjualan,
+          persentaseProduk: Math.round(persentaseProduk),
+        }
       },
     });
   } catch (error: any) {
@@ -170,7 +291,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { produkId, bulan, targetBahanBaku, targetOverhead, targetGaji, hargaBahanBaku } = body;
+    const { 
+      produkId, 
+      bulan, 
+      targetBahanBaku, 
+      targetOverhead, 
+      targetGaji, 
+      hargaBahanBaku,
+      qtyPenjualan
+    } = body;
 
     if (!produkId || !bulan) {
       return NextResponse.json({
@@ -182,6 +311,11 @@ export async function POST(request: Request) {
     const [year, month] = bulan.split('-').map(Number);
     const bulanDate = new Date(Date.UTC(year, month - 1, 1));
 
+    // Konversi target per produk ke total (untuk disimpan)
+    const qty = qtyPenjualan || 1;
+    const targetOverheadTotal = Math.round(Number(targetOverhead) * qty);
+    const targetGajiTotal = Math.round(Number(targetGaji) * qty);
+
     // Upsert target costing
     const target = await prisma.targetCosting.upsert({
       where: {
@@ -192,8 +326,8 @@ export async function POST(request: Request) {
       },
       update: {
         targetBahanBaku: Number(targetBahanBaku) || 0,
-        targetOverhead: Number(targetOverhead) || 0,
-        targetGaji: Number(targetGaji) || 0,
+        targetOverhead: targetOverheadTotal,
+        targetGaji: targetGajiTotal,
         hargaBahanBaku: hargaBahanBaku || {},
         updatedAt: new Date(),
       },
@@ -201,8 +335,8 @@ export async function POST(request: Request) {
         produkId: produkId,
         bulan: bulanDate,
         targetBahanBaku: Number(targetBahanBaku) || 0,
-        targetOverhead: Number(targetOverhead) || 0,
-        targetGaji: Number(targetGaji) || 0,
+        targetOverhead: targetOverheadTotal,
+        targetGaji: targetGajiTotal,
         hargaBahanBaku: hargaBahanBaku || {},
       },
     });
