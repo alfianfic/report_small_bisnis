@@ -5,6 +5,17 @@
 import { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 
+interface AlokasiItem {
+  id: string;
+  nama: string;
+  sku: string;
+  qty: number;
+  persentaseDefault: number;
+  persentaseOverride: number | null;
+  persentaseFinal: number;
+  isOverridden: boolean;
+}
+
 interface BahanBakuItem {
   id: string;
   nama: string;
@@ -57,6 +68,10 @@ interface CostingData {
     qtyPenjualan: number;
     persentaseProduk: number;
   };
+  alokasi?: {
+    data: AlokasiItem[];
+    isOverridden: boolean;
+  };
 }
 
 interface Produk {
@@ -81,6 +96,13 @@ export default function CostingPage() {
 
   // State untuk hide/show bahan baku
   const [showBahanBaku, setShowBahanBaku] = useState(false);
+
+  // State untuk alokasi override - DEFAULT AKTIF
+  const [showAlokasiModal, setShowAlokasiModal] = useState(false);
+  const [persentaseOverride, setPersentaseOverride] = useState<Record<string, number>>({});
+  const [alokasiData, setAlokasiData] = useState<AlokasiItem[]>([]);
+  const [isAlokasiActive, setIsAlokasiActive] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true); // Flag untuk initial load
 
   // Filter
   const [selectedMonth, setSelectedMonth] = useState(() => {
@@ -111,12 +133,28 @@ export default function CostingPage() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchData = async (isFromInit = false) => {
     if (!selectedProduk) return;
 
     try {
       setLoading(true);
-      const url = `/api/targetcosting?produkId=${selectedProduk}&bulan=${selectedMonth}&periode=${selectedPeriode}`;
+
+      // Build URL dengan override jika checkbox aktif
+      let url = `/api/targetcosting?produkId=${selectedProduk}&bulan=${selectedMonth}&periode=${selectedPeriode}`;
+
+      // 🔥 PERBAIKAN: Selalu kirim override jika aktif
+      if (isAlokasiActive) {
+        // Jika override kosong dan ini initial load, buat default dulu
+        let overrideToSend = { ...persentaseOverride };
+        
+        if (Object.keys(overrideToSend).length === 0 && isFromInit) {
+          // Ini initial load, override akan diisi dari response API
+          // Kita tetap fetch dulu untuk dapat data alokasi
+        } else if (Object.keys(overrideToSend).length > 0) {
+          url += `&persentase=${JSON.stringify(overrideToSend)}`;
+        }
+      }
+
       const res = await fetch(url);
       const result = await res.json();
 
@@ -125,6 +163,33 @@ export default function CostingPage() {
         setTargetBahanBaku(result.data.target.bahanBaku);
         setTargetOverhead(result.data.target.overhead);
         setTargetGaji(result.data.target.gaji);
+
+        // Set alokasi data & default override (hanya jika initial load)
+        if (result.data.alokasi) {
+          const alokasi = result.data.alokasi.data;
+          setAlokasiData(alokasi);
+
+          // Jika initial load, set default override
+          if (isFromInit) {
+            const defaultOverride: Record<string, number> = {};
+            alokasi.forEach((item: AlokasiItem) => {
+              if (item.nama.toLowerCase().includes('gudeg')) {
+                defaultOverride[item.id] = 70;
+              } else {
+                defaultOverride[item.id] = 15;
+              }
+            });
+            setPersentaseOverride(defaultOverride);
+            
+            // 🔥 Setelah override di-set, fetch ulang dengan override
+            if (isAlokasiActive) {
+              // Fetch ulang dengan override
+              setTimeout(() => {
+                fetchData(false);
+              }, 100);
+            }
+          }
+        }
 
         // Set harga bahan baku
         const hargaMap: Record<string, number> = {};
@@ -144,6 +209,7 @@ export default function CostingPage() {
       });
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -153,9 +219,19 @@ export default function CostingPage() {
 
   useEffect(() => {
     if (selectedProduk) {
-      fetchData();
+      // Reset initial load flag saat produk/ bulan/ periode berubah
+      setIsInitialLoad(true);
+      fetchData(true);
     }
   }, [selectedProduk, selectedMonth, selectedPeriode]);
+
+  // 🔥 Effect terpisah untuk menangani perubahan isAlokasiActive
+  useEffect(() => {
+    if (selectedProduk && !isInitialLoad) {
+      // Jika isAlokasiActive berubah (bukan initial load), fetch ulang
+      fetchData(false);
+    }
+  }, [isAlokasiActive]);
 
   // Update target bahan baku ketika harga berubah
   useEffect(() => {
@@ -204,7 +280,7 @@ export default function CostingPage() {
           timer: 1500,
           showConfirmButton: false,
         });
-        fetchData();
+        fetchData(false);
       } else {
         throw new Error(result.error);
       }
@@ -249,7 +325,7 @@ export default function CostingPage() {
             timer: 1500,
             showConfirmButton: false,
           });
-          fetchData();
+          fetchData(false);
         } else {
           throw new Error(result.error);
         }
@@ -279,6 +355,47 @@ export default function CostingPage() {
     return 'text-red-600';
   };
 
+  const handleApplyAlokasi = () => {
+    setIsAlokasiActive(true);
+    fetchData(false);
+    setShowAlokasiModal(false);
+  };
+
+  const handleResetAlokasi = () => {
+    const systemDefault: Record<string, number> = {};
+    alokasiData.forEach((item) => {
+      systemDefault[item.id] = item.persentaseDefault;
+    });
+    setPersentaseOverride(systemDefault);
+    setIsAlokasiActive(false);
+    fetchData(false);
+    setShowAlokasiModal(false);
+  };
+
+  const getTotalPersentase = () => {
+    if (Object.keys(persentaseOverride).length === 0) {
+      return alokasiData.reduce((sum, item) => sum + (item.persentaseDefault || 0), 0);
+    }
+    return Object.values(persentaseOverride).reduce((a, b) => a + b, 0);
+  };
+
+  const totalPersentase = getTotalPersentase();
+  const isTotalValid = Math.abs(totalPersentase - 100) < 0.01;
+
+  const handleToggleAlokasi = () => {
+    const newState = !isAlokasiActive;
+    setIsAlokasiActive(newState);
+
+    if (!newState) {
+      const systemDefault: Record<string, number> = {};
+      alokasiData.forEach((item) => {
+        systemDefault[item.id] = item.persentaseDefault;
+      });
+      setPersentaseOverride(systemDefault);
+    }
+    // fetchData akan dipanggil oleh useEffect isAlokasiActive
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
@@ -304,15 +421,15 @@ export default function CostingPage() {
               </span>
             </p>
           </div>
-          <div className="flex gap-2">
+          {/* <div className="flex gap-2">
             <button
-              onClick={fetchData}
+              onClick={() => fetchData(false)}
               disabled={loading}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2"
             >
               🔄 Refresh
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Filter */}
@@ -339,7 +456,6 @@ export default function CostingPage() {
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
             >
-              {/* Generate opsi bulan */}
               {Array.from({ length: 12 }, (_, i) => {
                 const year = new Date().getFullYear();
                 const month = i + 1;
@@ -364,6 +480,50 @@ export default function CostingPage() {
               <option value="bulanan">📆 Bulanan</option>
             </select>
           </div>
+
+          {/* Checkbox & Tombol Atur Alokasi */}
+          <div className="flex items-center gap-3">
+            <div>
+              <label className="text-xs text-gray-400 block">&nbsp;</label>
+              <div className="flex items-center gap-2">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAlokasiActive}
+                    onChange={handleToggleAlokasi}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  <span className="ml-2 text-sm text-gray-700">Alokasi Custom</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-400 block">&nbsp;</label>
+              <button
+                onClick={() => {
+                  const defaultOverride: Record<string, number> = {};
+                  alokasiData.forEach((item) => {
+                    if (item.nama.toLowerCase().includes('gudeg')) {
+                      defaultOverride[item.id] = 70;
+                    } else {
+                      defaultOverride[item.id] = 15;
+                    }
+                  });
+                  setPersentaseOverride(defaultOverride);
+                  setShowAlokasiModal(true);
+                }}
+                className="px-4 py-2 text-sm bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors flex items-center gap-2"
+              >
+                📊 Atur Alokasi
+                {isAlokasiActive && (
+                  <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">Active</span>
+                )}
+              </button>
+            </div>
+          </div>
+
           {data && (
             <div className="ml-auto text-sm text-gray-400">
               {data.isOverridden ? '🎯 Target Custom' : '📋 Target Default'}
@@ -376,6 +536,114 @@ export default function CostingPage() {
             </div>
           )}
         </div>
+
+        {/* Modal Alokasi Persentase */}
+        {showAlokasiModal && alokasiData.length > 0 && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div
+              className="absolute inset-0 bg-transparent"
+              onClick={() => setShowAlokasiModal(false)}
+            />
+            <div className="relative bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-gray-200">
+              <div className="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-indigo-700">📊 Atur Persentase Alokasi</h3>
+                <button
+                  onClick={() => setShowAlokasiModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+                <p className="text-sm text-gray-500 mb-4">
+                  Atur persentase alokasi biaya overhead dan gaji untuk setiap produk.
+                  Total persentase harus 100%.
+                </p>
+
+                <div className="space-y-3">
+                  {alokasiData.map((item) => (
+                    <div key={item.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm text-gray-700">{item.nama}</div>
+                        <div className="text-xs text-gray-400">
+                          Qty: {item.qty} | Default: {item.persentaseDefault}%
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={persentaseOverride[item.id] ?? item.persentaseDefault}
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            setPersentaseOverride(prev => ({
+                              ...prev,
+                              [item.id]: value
+                            }));
+                          }}
+                          className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                        <button
+                          onClick={() => {
+                            setPersentaseOverride(prev => {
+                              const newPrev = { ...prev };
+                              delete newPrev[item.id];
+                              return newPrev;
+                            });
+                          }}
+                          className="text-xs text-red-400 hover:text-red-600"
+                        >
+                          ↺ Reset
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Total Persentase:</span>
+                    <span className={`font-bold ${isTotalValid ? 'text-green-600' : 'text-red-600'}`}>
+                      {Math.round(totalPersentase)}%
+                      {!isTotalValid && (
+                        <span className="text-xs text-red-500 ml-2">(harus 100%)</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={handleApplyAlokasi}
+                    disabled={!isTotalValid}
+                    className={`flex-1 px-4 py-2 rounded-lg transition-colors ${
+                      isTotalValid
+                        ? 'bg-indigo-500 text-white hover:bg-indigo-600'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    ✅ Terapkan
+                  </button>
+                  <button
+                    onClick={handleResetAlokasi}
+                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    ↩️ Reset ke Sistem
+                  </button>
+                  <button
+                    onClick={() => setShowAlokasiModal(false)}
+                    className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         {data ? (
@@ -593,11 +861,10 @@ export default function CostingPage() {
                   <div className="pt-2">
                     <div className="flex justify-between items-center p-4 bg-gray-50 rounded-xl">
                       <span className="text-sm font-medium text-gray-600">📊 Selisih (Target - Realisasi)</span>
-                      <span className={`text-lg font-bold ${
-                        (data.target.total - data.realisasi.total) >= 0
-                          ? 'text-green-600'
-                          : 'text-red-600'
-                      }`}>
+                      <span className={`text-lg font-bold ${(data.target.total - data.realisasi.total) >= 0
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                        }`}>
                         {formatRupiah(data.target.total - data.realisasi.total)}
                       </span>
                     </div>
@@ -789,6 +1056,12 @@ export default function CostingPage() {
                           {data.periode.label}
                           {data.periode.tahun && ` (${data.periode.tahun})`}
                           {data.periode.bulan && ` (${data.periode.bulan})`}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-gray-500">Alokasi Custom</span>
+                        <span className={`font-medium ${isAlokasiActive ? 'text-indigo-600' : 'text-gray-400'}`}>
+                          {isAlokasiActive ? '✅ Aktif' : '❌ Nonaktif'}
                         </span>
                       </div>
                     </div>
